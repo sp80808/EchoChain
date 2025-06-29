@@ -1,0 +1,66 @@
+# macOS
+.DS_Store
+
+# Xcode
+*.xcworkspace
+*.xcuserstate
+*.xcuserdata
+DerivedData/
+
+# SwiftPM
+.build/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+
+# Node.js
+node_modules/
+dist/
+build/
+coverage/
+
+# Rust
+/target/
+Cargo.lock
+
+# Logs
+*.log
+npm-debug.log
+yarn-error.log
+debug.log
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Misc
+*.bak
+*.tmp
+*.old
+*.orig
+
+# Ignore scripts output
+scripts/*.sh
+
+# Ignore test output
+test-output/
+
+# Ignore environment files
+.env
+.env.*
+
+# Ignore Sample Browser App build artifacts
+Sample Browser App/server/node_modules/
+Sample Browser App/server/dist/
+Sample Browser App/server/build/
+
+# Ignore polkaSK dpcs_files and other non-project files
+polkaSK dpcs_files/
+polkaSK dpcs.html 

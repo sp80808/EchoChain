@@ -32,16 +32,16 @@ sc-offchain = { version = "4.0.0-dev", path = "../../substrate/client/offchain" 
 sc-consensus-aura = { version = "0.10.0-dev", path = "../../substrate/client/consensus/aura" }
 sp-consensus-aura = { version = "0.10.0-dev", path = "../../substrate/primitives/consensus/aura" }
 sc-consensus = { version = "0.10.0-dev", path = "../../substrate/client/consensus/common" }
-sc-consensus-grandpa = { git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-sp-consensus-grandpa = { git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-sc-client-api = { git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-sp-runtime = { git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-sp-io = { git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-sp-inherents = { git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-sp-keyring = { git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-frame-system = { git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-pallet-transaction-payment = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
+sc-consensus-grandpa = { version = "0.10.0-dev", path = "../../substrate/client/consensus/grandpa" }
+sp-consensus-grandpa = { version = "4.0.0-dev", path = "../../substrate/primitives/consensus/grandpa" }
+sc-client-api = { version = "4.0.0-dev", path = "../../substrate/client/api" }
+sp-runtime = { version = "24.0.0", path = "../../substrate/primitives/runtime" }
+sp-io = { version = "23.0.0", path = "../../substrate/primitives/io" }
+sp-timestamp = { version = "4.0.0-dev", path = "../../substrate/primitives/timestamp" }
+sp-inherents = { version = "4.0.0-dev", path = "../../substrate/primitives/inherents" }
+sp-keyring = { version = "24.0.0", path = "../../substrate/primitives/keyring" }
+frame-system = { version = "4.0.0-dev", path = "../../substrate/frame/system" }
+pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, path = "../../substrate/frame/transaction-payment" }
 
 # These dependencies are used for the node template's RPCs
 jsonrpsee = { version = "0.16.2", features = ["server"] }

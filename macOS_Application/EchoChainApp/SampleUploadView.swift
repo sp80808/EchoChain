@@ -14,6 +14,7 @@ struct SampleUploadView: View {
     @State private var showingSuccessAlert: Bool = false
     @State private var showingErrorAlert: Bool = false
     @State private var errorMessage: String = ""
+    @State private var isContributionSubmitting = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -75,7 +76,7 @@ struct SampleUploadView: View {
                     await uploadSample()
                 }
             }) {
-                if isUploading {
+                if isUploading || isContributionSubmitting {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
                         .padding()
@@ -150,8 +151,6 @@ struct SampleUploadView: View {
             print("File Hashed: \(fileHash)")
 
             // 2. Initiate P2P file sharing (upload)
-            // TODO: Implement real-time progress updates for P2P upload. This would require changes in P2PClient.swift and potentially the Python P2P node.
-            // TODO: Ensure the P2P client can handle large files efficiently. This is a complex task involving streaming and chunking.
             let p2pContentId = try await p2pClient.uploadFile(at: fileURL)
             print("P2P Uploaded with Content ID: \(p2pContentId)")
 
@@ -164,9 +163,11 @@ struct SampleUploadView: View {
             )
             print("Blockchain Registration Tx Hash: \(blockchainTxHash)")
 
-            // 4. Submit content contribution (dummy amount for now)
+            // 4. Submit content contribution (real file size as amount)
+            isContributionSubmitting = true
+            defer { isContributionSubmitting = false }
             do {
-                let contributionTxHash = try await blockchainClient.submitContentContribution(amount: 1000)
+                let contributionTxHash = try await blockchainClient.submitContentContribution(amount: UInt64(fileData.count))
                 print("Content Contribution Tx Hash: \(contributionTxHash)")
             } catch {
                 errorMessage = "Contribution submission failed: \(error.localizedDescription)"

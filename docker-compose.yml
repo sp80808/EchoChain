@@ -16,13 +16,13 @@ services:
         max-size: "10m"
         max-file: "5"
 
-  # Placeholder for Blockchain Service
   blockchain:
     build:
-      context: ./Blockchain # Assuming a Dockerfile exists here
+      context: ./Blockchain/echochain-node
       dockerfile: Dockerfile
     ports:
-      - "9944:9944" # Example Substrate RPC port
+      - "9944:9944" # Substrate RPC port
+      - "9933:9933" # Substrate WebSocket port
     environment:
       NODE_ENV: production
     logging:

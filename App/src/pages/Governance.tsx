@@ -25,28 +25,12 @@ const Governance: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        // For now, simulate fetching proposals
-        const dummyProposals: Proposal[] = [
-          {
-            _id: 'prop1',
-            title: 'Increase Content Rewards',
-            description: 'Propose to increase monthly content rewards from 100 ECHO to 150 ECHO.',
-            proposer: { email: 'alice@example.com', walletAddress: 'ECHO_ALICE' },
-            status: 'open',
-            votesAye: 150,
-            votesNay: 50,
-          },
-          {
-            _id: 'prop2',
-            title: 'Introduce NFT Sample Packs',
-            description: 'Propose to introduce exclusive NFT sample packs for ECHO token holders.',
-            proposer: { email: 'bob@example.com', walletAddress: 'ECHO_BOB' },
-            status: 'open',
-            votesAye: 200,
-            votesNay: 20,
-          },
-        ];
-        setProposals(dummyProposals);
+        const response = await fetch('http://localhost:3001/api/samples/governance/proposals');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data: Proposal[] = await response.json();
+        setProposals(data);
       } catch (e: any) {
         setError(e.message);
       } finally {

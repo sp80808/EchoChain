@@ -18,6 +18,7 @@ interface Sample {
 
 const SampleBrowser: React.FC = () => {
   const [samples, setSamples] = useState<Sample[]>([]);
+  const [featuredSamples, setFeaturedSamples] = useState<Sample[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -49,6 +50,10 @@ const SampleBrowser: React.FC = () => {
         }
         const data: Sample[] = await response.json();
         setSamples(data);
+
+        // Simulate featured samples (e.g., first 3 samples)
+        setFeaturedSamples(data.slice(0, 3));
+
       } catch (e: any) {
         setError(e.message);
       } finally {
@@ -107,6 +112,24 @@ const SampleBrowser: React.FC = () => {
     <AppLayout>
       <div className="container mx-auto">
         <h2 className="text-3xl font-bold mb-6">Explore Samples</h2>
+
+        {/* Featured Samples */}
+        <h3 className="text-2xl font-bold mb-4">Featured Samples</h3>
+        <div className="flex overflow-x-auto space-x-4 pb-4 mb-8">
+          {featuredSamples.map((sample) => (
+            <div key={sample._id} className="flex-none w-64 bg-gray-800 rounded-lg shadow-md p-4 border border-gray-700">
+              <h4 className="text-lg font-semibold mb-1">{sample.title}</h4>
+              <p className="text-gray-400 text-sm mb-2">By: {sample.creator.email}</p>
+              {/* Add more details or a smaller waveform here if desired */}
+              <button
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded text-sm w-full"
+                onClick={() => alert(`Playing featured sample: ${sample.title}`)}
+              >
+                Listen
+              </button>
+            </div>
+          ))}
+        </div>
 
         {/* Search and Filter */}
         <div className="mb-6 flex space-x-4">

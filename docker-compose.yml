@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  backend-api:
+    build:
+      context: ./Backend_API_Services
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+    # Placeholder for production-ready logging and monitoring
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # Placeholder for Blockchain Service
+  blockchain:
+    build:
+      context: ./Blockchain # Assuming a Dockerfile exists here
+      dockerfile: Dockerfile
+    ports:
+      - "9944:9944" # Example Substrate RPC port
+    environment:
+      NODE_ENV: production
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # Placeholder for P2P File Sharing System
+  p2p-client:
+    build:
+      context: ./P2P_File_Sharing_System # Assuming a Dockerfile exists here
+      dockerfile: Dockerfile
+    ports:
+      - "6000:6000" # Example P2P port
+    environment:
+      NODE_ENV: production
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"

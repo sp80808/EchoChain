@@ -1,0 +1,22 @@
+[package]
+name = "pallet-governance"
+version = "0.1.0"
+edition = "2021"
+description = "Governance pallet for EchoChain blockchain parameters"
+
+[dependencies]
+frame-support = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
+frame-system = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
+sp-core = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
+sp-std = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
+pallet-proof-of-contribution = { path = "../proof-of-contribution", default-features = false }
+
+[features]
+default = ["std"]
+std = [
+    "frame-support/std",
+    "frame-system/std",
+    "sp-core/std",
+    "sp-std/std",
+    "pallet-proof-of-contribution/std",
+]

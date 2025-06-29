@@ -28,7 +28,7 @@ class RealBlockchainClient: BlockchainClientProtocol {
     private let nodeURL = URL(string: "http://localhost:9933")! // Substrate RPC HTTP port
     private let secureStorage = SecureStorage()
 
-    private var privateKey: SecKey? // TODO: This should be managed more robustly, potentially not stored directly.
+    private var privateKey: Curve25519.Signing.PrivateKey? // TODO: This should be managed more robustly, potentially not stored directly. The SecureStorage should ideally return this type directly.
 
     init() {
         // TODO: Implement proper initialization, potentially loading an existing wallet or prompting for creation.
@@ -89,8 +89,12 @@ class RealBlockchainClient: BlockchainClientProtocol {
     @MainActor
     func fetchBalance() async throws {
         guard !walletAddress.isEmpty else { throw BlockchainClientError.walletNotLoaded }
+        // TODO: Implement actual balance fetching from the blockchain.
+        // This typically involves querying the `system.account` storage map.
+        // Example RPC method: `state_getStorage` with the account key.
+        // The current `chain_getBalance` is a placeholder and might not exist on a real node.
         let params = [walletAddress]
-        let request = JSONRPCRequest(method: "system_accountNextIndex", params: params)
+        let request = JSONRPCRequest(method: "chain_getBalance", params: params) // Placeholder RPC method
         let result: Double = try await sendRPC(request: request)
         self.balance = result
     }

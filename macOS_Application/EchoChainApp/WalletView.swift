@@ -204,6 +204,48 @@ struct WalletView: View {
                 .padding()
             }
 
+            Button(action: {
+                Task {
+                    do {
+                        let result = try await blockchainClient.claimRewards()
+                        errorMessage = "Rewards claimed! Tx Hash: \(result)"
+                        showingErrorAlert = true
+                    } catch {
+                        errorMessage = error.localizedDescription
+                        showingErrorAlert = true
+                    }
+                }
+            }) {
+                Label("Claim Rewards", systemImage: "gift.fill")
+                    .font(.title3)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color.green)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+            }
+
+            Button(action: {
+                Task {
+                    do {
+                        let result = try await blockchainClient.submitNetworkContribution(uploaded: 1000, downloaded: 2000)
+                        errorMessage = "Network contribution submitted! Tx Hash: \(result)"
+                        showingErrorAlert = true
+                    } catch {
+                        errorMessage = error.localizedDescription
+                        showingErrorAlert = true
+                    }
+                }
+            }) {
+                Label("Submit Network Contribution", systemImage: "arrow.up.arrow.down")
+                    .font(.title3)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color.purple)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+            }
+
             Divider()
 
             Text("Transaction History")

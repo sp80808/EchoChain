@@ -156,8 +156,6 @@ struct SampleUploadView: View {
             print("P2P Uploaded with Content ID: \(p2pContentId)")
 
             // 3. Register metadata on the blockchain
-            // TODO: Ensure registerSampleMetadata correctly interacts with the blockchain smart contract. This requires detailed knowledge of the smart contract ABI and Substrate extrinsic submission.
-            // TODO: Add more comprehensive error handling for blockchain registration, including specific error codes from the chain.
             let blockchainTxHash = try await blockchainClient.registerSampleMetadata(
                 title: sampleTitle,
                 artist: artistName,
@@ -165,6 +163,15 @@ struct SampleUploadView: View {
                 blockchainHash: fileHash
             )
             print("Blockchain Registration Tx Hash: \(blockchainTxHash)")
+
+            // 4. Submit content contribution (dummy amount for now)
+            do {
+                let contributionTxHash = try await blockchainClient.submitContentContribution(amount: 1000)
+                print("Content Contribution Tx Hash: \(contributionTxHash)")
+            } catch {
+                errorMessage = "Contribution submission failed: \(error.localizedDescription)"
+                showingErrorAlert = true
+            }
 
             showingSuccessAlert = true
         } catch {

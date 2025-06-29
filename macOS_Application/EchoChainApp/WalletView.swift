@@ -234,8 +234,8 @@ struct WalletView: View {
                     isBlockchainActionLoading = true
                     defer { isBlockchainActionLoading = false }
                     do {
-                        let uploaded = UInt64(p2pClient.uploadedFiles.count)
-                        let downloaded = UInt64(p2pClient.downloadedFiles.count)
+                        let uploaded = p2pClient.totalBytesUploaded
+                        let downloaded = p2pClient.totalBytesDownloaded
                         let result = try await blockchainClient.submitNetworkContribution(uploaded: uploaded, downloaded: downloaded)
                         errorMessage = "Network contribution submitted! Tx Hash: \(result)"
                         showingErrorAlert = true

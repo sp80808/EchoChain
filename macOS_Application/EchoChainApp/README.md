@@ -9,13 +9,17 @@
 - [ ] Implement sample metadata registration on-chain
 
 ## 2. P2P Integration
-- [ ] Ensure the Python P2P node is running and accessible
-- [ ] Add robust error handling for P2P connection failures
-- [ ] Add a status indicator for P2P connectivity in the UI
+- [x] Ensure the Python P2P node is running and accessible
+- [x] Add robust error handling for P2P connection failures
+- [x] Add a status indicator for P2P connectivity in the UI
+- [x] **Track total bytes uploaded/downloaded:**
+    - The Swift P2P client (`RealP2PClient`) now exposes `@Published var totalBytesUploaded: UInt64` and `totalBytesDownloaded: UInt64`.
+    - These are incremented automatically whenever a file is uploaded or downloaded.
+    - These values are used for accurate network contribution reporting to the blockchain.
 
 ## 3. UI/UX Polish
-- [ ] Add loading indicators and progress bars for network actions
-- [ ] Improve error/success feedback (alerts, banners)
+- [x] Add loading indicators and progress bars for network actions
+- [x] Improve error/success feedback (alerts, banners)
 - [ ] Add a settings/help/about screen
 - [ ] Polish navigation and layout for consistency and accessibility
 
@@ -45,10 +49,11 @@ A production-ready Swift client (`P2PClient.swift`) is provided for interacting 
 - File upload and announcement
 - Peer/content discovery
 - File download initiation
+- **Accurate contribution stats:** Tracks and exposes `totalBytesUploaded` and `totalBytesDownloaded` for use in blockchain rewards and analytics.
 
 ### Usage Example
 ```swift
-let client = P2PClient()
+let client = RealP2PClient()
 client.addFileAndAnnounce(filepath: "/path/to/file.wav") { result in
     switch result {
     case .success(let fileHash):
@@ -60,7 +65,12 @@ client.addFileAndAnnounce(filepath: "/path/to/file.wav") { result in
         print("Error:", error)
     }
 }
+print("Total uploaded: \(client.totalBytesUploaded) bytes")
+print("Total downloaded: \(client.totalBytesDownloaded) bytes")
 ```
+
+### UI Integration
+- The WalletView uses these byte totals when submitting network contribution reports to the blockchain, ensuring rewards are based on real data transfer, not just file counts.
 
 ### Integration Notes
 - The client communicates with the Python P2P node via JSON-over-TCP on the local API port (default: 8002).

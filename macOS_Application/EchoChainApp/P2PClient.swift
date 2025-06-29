@@ -7,6 +7,8 @@ protocol P2PClientProtocol: ObservableObject {
     var isConnected: Bool { get }
     var downloadedFiles: [P2PFile] { get }
     var uploadedFiles: [P2PFile] { get }
+    var totalBytesUploaded: UInt64 { get }
+    var totalBytesDownloaded: UInt64 { get }
 
     func connect() async throws
     func disconnect() async throws
@@ -20,6 +22,8 @@ class RealP2PClient: P2PClientProtocol {
     @Published var isConnected: Bool = false
     @Published var downloadedFiles: [P2PFile] = []
     @Published var uploadedFiles: [P2PFile] = []
+    @Published var totalBytesUploaded: UInt64 = 0
+    @Published var totalBytesDownloaded: UInt64 = 0
 
     private let nodeHost: String
     private let localAPIPort: Int
@@ -141,6 +145,10 @@ class RealP2PClient: P2PClientProtocol {
         let fileName = url.lastPathComponent
         let newUploadedFile = P2PFile(id: UUID(), contentId: fileHash, fileName: fileName, localPath: url.path, status: status)
         self.uploadedFiles.append(newUploadedFile)
+        // Increment totalBytesUploaded
+        if let fileSize = try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? UInt64 {
+            self.totalBytesUploaded += fileSize
+        }
         return fileHash
     }
 
@@ -176,6 +184,10 @@ class RealP2PClient: P2PClientProtocol {
 
         let newDownloadedFile = P2PFile(id: UUID(), contentId: contentId, fileName: fileName, localPath: downloadedFileURL.path, status: .downloaded)
         self.downloadedFiles.append(newDownloadedFile)
+        // Increment totalBytesDownloaded
+        if let fileSize = try? FileManager.default.attributesOfItem(atPath: downloadedFileURL.path)[.size] as? UInt64 {
+            self.totalBytesDownloaded += fileSize
+        }
         print("RealP2PClient: File downloaded from P2P network. Local path: \(downloadedFileURL.path)")
         
         return downloadedFileURL

@@ -2,14 +2,11 @@
 
 ---
 
-## Security, Compliance, and .gitignore Policy (Update July 2024)
+## Usage, Building, and Development (Updated July 2024)
 
-- All secrets, credentials, and environment variables are managed via `.env` files, which are strictly ignored in all subprojects.
-- Build artifacts, dependencies (e.g., `node_modules/`, `venv/`), IDE/editor files, and OS-specific files are ignored to prevent accidental leaks and repository bloat.
-- Each subproject contains a tailored `.gitignore` and documentation explaining its rationale.
-- No sensitive data or credentials are ever committed to the repository.
-- Contributors must review and update `.gitignore` and documentation when adding new dependencies, build tools, or secrets.
-- See each subproject's README for specific ignore rules and rationale.
+- For high-level usage, building, and development instructions, see the main [README.md](./README.md).
+- Each subproject contains a dedicated README with setup, build, and usage details.
+- This document provides in-depth technical documentation and development plans for each major component of the EchoChain project.
 
 ---
 

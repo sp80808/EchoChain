@@ -51,8 +51,13 @@ const SampleBrowser: React.FC = () => {
         const data: Sample[] = await response.json();
         setSamples(data);
 
-        // Simulate featured samples (e.g., first 3 samples)
-        setFeaturedSamples(data.slice(0, 3));
+        // Fetch featured samples from backend
+        const featuredResponse = await fetch(`http://localhost:3001/api/samples/featured`);
+        if (!featuredResponse.ok) {
+          throw new Error(`HTTP error! status: ${featuredResponse.status}`);
+        }
+        const featuredData: Sample[] = await featuredResponse.json();
+        setFeaturedSamples(featuredData);
 
       } catch (e: any) {
         setError(e.message);

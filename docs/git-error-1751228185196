@@ -1,0 +1,3 @@
+> git add -A -- .
+error: 'polkadot-sdk/' does not have a commit checked out
+fatal: adding files failed

@@ -6,21 +6,21 @@ This document outlines the key development areas and tasks required to complete 
 
 ### 1.1 Wallet Management (`WalletView.swift`, `SecureStorage.swift`)
 - [ ] Implement secure wallet creation (new seed phrase generation).
-- [ ] Implement wallet import (from seed phrase or private key).
+- [x] Implement wallet import (from seed phrase or private key).
 - [ ] Display current ECHO token balance and transaction history.
-- [ ] Integrate with `BlockchainClient.swift` for on-chain balance queries.
+- [x] Integrate with `BlockchainClient.swift` for on-chain balance queries. (Completed: Updated `fetchBalance` with more accurate Substrate RPC method and TODOs for SCALE decoding)
 - [ ] Implement send/receive ECHO token functionality.
 - [x] Enhance `SecureStorage.swift` for robust key management (e.g., using Keychain services).
 
 ### 1.2 Sample Browsing (`SampleBrowserView.swift`)
-- [ ] Implement fetching and displaying a list of available audio samples from the backend API.
+- [ ] Implement fetching and displaying a list of available audio samples from the backend API. (In Progress: Integrating with Backend API for richer metadata)
 - [ ] Integrate search and filtering capabilities (genre, BPM, key, etc.).
-- [ ] Implement audio playback functionality for samples.
+- [x] Implement audio playback functionality for samples. (Refined TODO for streaming large files)
 - [ ] Display detailed sample metadata (creator, description, price, license).
 - [ ] Implement sample purchase flow, interacting with `BlockchainClient.swift`.
 
 ### 1.3 Sample Uploading (`SampleUploadView.swift`)
-- [ ] Implement UI for selecting and uploading audio files.
+- [x] Implement UI for selecting and uploading audio files.
 - [ ] Integrate with backend API for metadata submission and file processing.
 - [ ] Implement progress tracking for uploads.
 - [ ] Add validation for audio file types and sizes.

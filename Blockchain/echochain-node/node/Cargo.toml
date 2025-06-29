@@ -61,7 +61,7 @@ frame-benchmarking-cli = { version = "4.0.0-dev", path = "../../substrate/utils/
 echochain-node-runtime = { version = "4.0.0-dev", path = "../runtime" }
 
 # CLI-specific dependencies
-try-runtime-cli = { version = "0.10.0-dev", optional = true, path = "../../substrate/utils/frame/try-runtime/cli" }
+
 
 [build-dependencies]
 substrate-build-script-utils = { version = "3.0.0", path = "../../substrate/utils/build-script-utils" }
@@ -79,10 +79,4 @@ runtime-benchmarks = [
 ]
 # Enable features that allow the runtime to be tried and debugged. Name might be subject to change
 # in the near future.
-try-runtime = [
-	"frame-system/try-runtime",
-	"echochain-node-runtime/try-runtime",
-	"pallet-transaction-payment/try-runtime",
-	"sp-runtime/try-runtime",
-	"try-runtime-cli/try-runtime",
-]
+

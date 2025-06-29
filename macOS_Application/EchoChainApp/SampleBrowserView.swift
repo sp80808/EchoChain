@@ -17,7 +17,6 @@ struct SampleBrowserView: View {
                 .bold()
                 .padding(.bottom, 20)
 
-            // Search bar and filter
             HStack {
                 TextField("Search samples...", text: $searchQuery)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
@@ -111,6 +110,9 @@ struct SampleBrowserView: View {
     private func playSample(contentId: String) async {
         do {
             // TODO: Implement proper audio streaming or progressive download for large files.
+            // The current implementation downloads the entire file before playing, which is inefficient for large samples.
+            // Consider using AVPlayerItem with AVAssetResourceLoaderDelegate for custom loading,
+            // or integrating a dedicated streaming library that works with the P2P client.
             let fileURL = try await p2pClient.downloadFile(contentId: contentId)
             audioPlayer = AVPlayer(url: fileURL)
             audioPlayer?.play()

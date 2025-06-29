@@ -150,14 +150,14 @@ struct SampleUploadView: View {
             print("File Hashed: \(fileHash)")
 
             // 2. Initiate P2P file sharing (upload)
-            // TODO: Implement real-time progress updates for P2P upload.
-            // TODO: Ensure the P2P client can handle large files efficiently.
+            // TODO: Implement real-time progress updates for P2P upload. This would require changes in P2PClient.swift and potentially the Python P2P node.
+            // TODO: Ensure the P2P client can handle large files efficiently. This is a complex task involving streaming and chunking.
             let p2pContentId = try await p2pClient.uploadFile(at: fileURL)
             print("P2P Uploaded with Content ID: \(p2pContentId)")
 
             // 3. Register metadata on the blockchain
-            // TODO: Ensure registerSampleMetadata correctly interacts with the blockchain smart contract.
-            // TODO: Add more comprehensive error handling for blockchain registration.
+            // TODO: Ensure registerSampleMetadata correctly interacts with the blockchain smart contract. This requires detailed knowledge of the smart contract ABI and Substrate extrinsic submission.
+            // TODO: Add more comprehensive error handling for blockchain registration, including specific error codes from the chain.
             let blockchainTxHash = try await blockchainClient.registerSampleMetadata(
                 title: sampleTitle,
                 artist: artistName,

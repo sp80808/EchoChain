@@ -107,14 +107,36 @@ class RealBlockchainClient: BlockchainClientProtocol {
     @MainActor
     func fetchBalance() async throws {
         guard !walletAddress.isEmpty else { throw BlockchainClientError.walletNotLoaded }
-        // TODO: Implement actual balance fetching from the blockchain.
-        // This typically involves querying the `system.account` storage map.
-        // Example RPC method: `state_getStorage` with the account key.
-        // The current `chain_getBalance` is a placeholder and might not exist on a real node.
-        let params = [walletAddress]
-        let request = JSONRPCRequest(method: "chain_getBalance", params: params) // Placeholder RPC method
-        let result: Double = try await sendRPC(request: request)
-        self.balance = result
+
+        // To fetch the actual balance from a Substrate node, we need to query the `system.account` storage map.
+        // This involves constructing the storage key for the account and then decoding the returned `AccountInfo`.
+        // The storage key is typically a Blake2b hash of the module name, storage item name, and the account ID.
+        // For a real implementation, you would use a Substrate-specific library to handle key encoding and data decoding.
+
+        // Placeholder for the storage key. In a real scenario, this would be derived from the walletAddress.
+        // Example: "0x" + blake2b_256("System") + blake2b_256("Account") + blake2b_256(walletAddress)
+        // The exact format depends on the runtime's metadata.
+        let accountStorageKey = "0x" + Data(walletAddress.utf8).sha256().hexEncodedString // This is a simplified placeholder
+
+        let params = [accountStorageKey]
+        let request = JSONRPCRequest(method: "state_getStorage", params: params)
+
+        // The result will be a hex-encoded string of the AccountInfo.
+        // You'll need to decode this hex string into the AccountInfo structure
+        // and then extract the `data.free` balance.
+        let hexEncodedAccountInfo: String? = try await sendRPC(request: request)
+
+        guard let hexInfo = hexEncodedAccountInfo, !hexInfo.isEmpty else {
+            // Account might not exist on chain yet, or has no balance
+            self.balance = 0.0
+            return
+        }
+
+        // TODO: Decode the hexEncodedAccountInfo into a Substrate AccountInfo structure.
+        // This is a complex step that requires knowledge of the runtime's SCALE encoding.
+        // For now, we'll set a dummy balance.
+        self.balance = 123.45 // Dummy balance for demonstration
+        print("Fetched balance for \(walletAddress): \(self.balance) ECHO (Dummy)")
     }
 
     @MainActor

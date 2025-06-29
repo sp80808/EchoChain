@@ -5,11 +5,11 @@ edition = "2021"
 description = "Proof of Contribution pallet for EchoChain blockchain"
 
 [dependencies]
-frame-support = { default-features = false, path = "../../substrate/frame/support", features = ["try-runtime"] }
-frame-system = { default-features = false, path = "../../substrate/frame/system", features = ["try-runtime"] }
-sp-runtime = { default-features = false, path = "../../substrate/primitives/runtime", features = ["try-runtime"] }
-sp-std = { default-features = false, path = "../../substrate/primitives/std", features = ["try-runtime"] }
-pallet-balances = { default-features = false, path = "../../substrate/frame/balances", features = ["try-runtime"] } # Add pallet-balances dependency
+frame-support = { default-features = false, path = "../../substrate/frame/support" }
+frame-system = { default-features = false, path = "../../substrate/frame/system" }
+sp-runtime = { default-features = false, path = "../../substrate/primitives/runtime" }
+sp-std = { default-features = false, path = "../../substrate/primitives/std" }
+pallet-balances = { default-features = false, path = "../../substrate/frame/balances" } # Add pallet-balances dependency
 
 [features]
 default = ["std"]
@@ -19,11 +19,4 @@ std = [
     "sp-runtime/std",
     "sp-std/std",
     "pallet-balances/std", # Add std feature for pallet-balances
-]
-try-runtime = [
-    "frame-support/try-runtime",
-    "frame-system/try-runtime",
-    "sp-runtime/try-runtime",
-    "sp-std/try-runtime",
-    "pallet-balances/try-runtime",
 ]

@@ -86,7 +86,8 @@ class RealP2PClient: P2PClientProtocol {
             throw P2PClientError.notConnected
         }
 
-        // TODO: Improve error handling for JSON serialization/deserialization.
+        // The current implementation assumes the Python node returns a simple JSON dictionary.
+        // TODO: For production, consider a more robust JSON-RPC client or a dedicated P2P communication protocol.
         return try await withCheckedThrowingContinuation { continuation in
             let message: [String: Any] = ["type": commandType, "payload": payload]
             guard let jsonData = try? JSONSerialization.data(withJSONObject: message) else {
@@ -155,12 +156,13 @@ class RealP2PClient: P2PClientProtocol {
         
         print("RealP2PClient: Download initiated for \(contentId). Waiting for completion...")
         
-        // TODO: Replace simulation with actual polling or callback mechanism from the Python node
-        // to confirm download completion and get the actual downloaded file path.
+        // TODO: Replace this simulation with actual polling or a callback mechanism from the Python node
+        // to confirm download completion and get the actual downloaded file path. The current implementation
+        // assumes the file is immediately available after the simulated delay.
         try await Task.sleep(nanoseconds: 5_000_000_000) // Simulate download time
 
-        // Construct the expected download path based on p2p_node.py's logic
-        // This is a simplification; ideally, the node would return the actual path.
+        // Construct the expected download path based on p2p_node.py's logic.
+        // TODO: The Python node should ideally return the actual path of the downloaded file.
         let tempDirectory = FileManager.default.temporaryDirectory
         let fileName = "downloaded_sample_\(contentId).mp3" // Assuming .mp3 for samples
         let downloadedFileURL = tempDirectory.appendingPathComponent(fileName)

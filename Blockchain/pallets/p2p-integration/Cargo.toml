@@ -5,10 +5,10 @@ edition = "2021"
 description = "P2P network integration pallet for EchoChain blockchain"
 
 [dependencies]
-frame-support = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
-frame-system = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
-sp-core = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
-sp-std = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
+frame-support = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v1.0.0" }
+frame-system = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v1.0.0" }
+sp-core = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v1.0.0" }
+sp-std = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v1.0.0" }
 pallet-proof-of-contribution = { path = "../proof-of-contribution", default-features = false }
 
 [features]

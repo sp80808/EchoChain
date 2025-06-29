@@ -53,7 +53,6 @@ struct WalletView: View {
                 Task {
                     do {
                         try await blockchainClient.createWallet()
-                        // walletAddress will be updated via .onChange
                     } catch {
                         errorMessage = error.localizedDescription
                         showingErrorAlert = true
@@ -91,7 +90,6 @@ struct WalletView: View {
                                 return
                             }
                             try await blockchainClient.importWallet(privateKeyData: privateKeyData)
-                            // walletAddress will be updated via .onChange
                             importPrivateKeyInput = "" // Clear input
                         } catch {
                             errorMessage = error.localizedDescription
@@ -109,7 +107,6 @@ struct WalletView: View {
             Button(action: {
                 Task {
                     do {
-                        // TODO: Ensure this fetches the latest balance from the blockchain.
                         try await blockchainClient.fetchBalance()
                     } catch {
                         errorMessage = error.localizedDescription
@@ -213,7 +210,6 @@ struct WalletView: View {
                 .font(.title)
                 .padding(.top, 20)
 
-            // TODO: Ensure transaction history is fetched and displayed accurately from the blockchain.
             List(blockchainClient.transactionHistory) { transaction in
                 VStack(alignment: .leading) {
                     Text("Type: \(transaction.type.rawValue.capitalized)")
@@ -236,9 +232,8 @@ struct WalletView: View {
         .padding()
         .navigationTitle("Wallet")
         .onAppear {
+            walletAddress = blockchainClient.walletAddress
             Task {
-                // TODO: Handle initial wallet loading (create new or import) more gracefully.
-                walletAddress = blockchainClient.walletAddress
                 do {
                     try await blockchainClient.fetchBalance()
                     try await blockchainClient.fetchTransactionHistory()
@@ -248,23 +243,16 @@ struct WalletView: View {
                 }
             }
         }
-        .alert("Error", isPresented: $showingErrorAlert) {
-            Button("OK") { }
-        } message: {
-            Text(errorMessage)
+        .onChange(of: blockchainClient.walletAddress) { newAddress in
+            walletAddress = newAddress
+            // When wallet address changes (e.g., after create/import), refresh balance and history
+            Task {
+                do {
+                    try await blockchainClient.fetchBalance()
+                    try await blockchainClient.fetchTransactionHistory()
+                } catch {
+                    errorMessage = error.localizedDescription
+                    showingErrorAlert = true
+                }
+            }
         }
-    }
-
-    private var itemFormatter: DateFormatter {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .medium
-        return formatter
-    }
-}
-
-struct WalletView_Previews: PreviewProvider {
-    static var previews: some View {
-        WalletView()
-    }
-}

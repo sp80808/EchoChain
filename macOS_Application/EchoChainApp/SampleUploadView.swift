@@ -58,15 +58,12 @@ struct SampleUploadView: View {
                     do {
                         let fileURL = try result.get().first
                         selectedFile = fileURL
-                        // For security-scoped bookmarks, you might need to call startAccessingSecurityScopedResource()
-                        // if fileURL.startAccessingSecurityScopedResource() {
-                        //     print("Selected file: \(fileURL?.lastPathComponent ?? "N/A")")
-                        // } else {
-                        //     print("Failed to get access to security-scoped resource.")
-                        // }
+                        // TODO: Properly handle security-scoped bookmarks for persistent access if needed.
+                        // fileURL.startAccessingSecurityScopedResource() and fileURL.stopAccessingSecurityScopedResource()
                         print("Selected file: \(fileURL?.lastPathComponent ?? "N/A")")
                     } catch {
                         print("Error selecting file: \(error.localizedDescription)")
+                        // TODO: Provide user feedback for file selection errors.
                     }
                 }
             }
@@ -119,6 +116,7 @@ struct SampleUploadView: View {
             Task {
                 do {
                     if !p2pClient.isConnected {
+                        // TODO: Implement robust connection retry logic for P2P client.
                         try await p2pClient.connect()
                     }
                 } catch {
@@ -152,10 +150,14 @@ struct SampleUploadView: View {
             print("File Hashed: \(fileHash)")
 
             // 2. Initiate P2P file sharing (upload)
+            // TODO: Implement real-time progress updates for P2P upload.
+            // TODO: Ensure the P2P client can handle large files efficiently.
             let p2pContentId = try await p2pClient.uploadFile(at: fileURL)
             print("P2P Uploaded with Content ID: \(p2pContentId)")
 
             // 3. Register metadata on the blockchain
+            // TODO: Ensure registerSampleMetadata correctly interacts with the blockchain smart contract.
+            // TODO: Add more comprehensive error handling for blockchain registration.
             let blockchainTxHash = try await blockchainClient.registerSampleMetadata(
                 title: sampleTitle,
                 artist: artistName,

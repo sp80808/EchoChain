@@ -17,9 +17,8 @@ class SecureStorage {
                 kSecAttrApplicationTag as String: keyTag,
                 kSecAttrAccessControl as String: SecAccessControlCreateWithFlags(
                     kCFAllocatorDefault,
-                    .privateKeyUsage, // TODO: Adjust access control flags as per security requirements (e.g., .userPresence, .biometryAny)
                     .privateKeyUsage,
-                    nil
+                    .userPresence // Require user presence (e.g., password, Touch ID, Face ID) for private key usage
                 )!
             ]
         ]

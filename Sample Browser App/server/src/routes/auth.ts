@@ -63,4 +63,15 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// Get authenticated user's details
+router.get('/me', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-passwordHash');
+    res.json(user);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
 export default router;

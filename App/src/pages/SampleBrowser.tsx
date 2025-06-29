@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import AppLayout from '../components/AppLayout';
+import WaveSurfer from 'wavesurfer.js';
 
 interface Sample {
   _id: string;
@@ -20,6 +21,7 @@ const SampleBrowser: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
   const [tagFilter, setTagFilter] = useState<string>('');
+  const wavesurferInstances = useRef<{ [key: string]: WaveSurfer }>({});
 
   useEffect(() => {
     const fetchSamples = async () => {
@@ -36,6 +38,7 @@ const SampleBrowser: React.FC = () => {
             'x-auth-token': localStorage.getItem('token') || '',
           },
         });
+
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -50,6 +53,44 @@ const SampleBrowser: React.FC = () => {
 
     fetchSamples();
   }, [searchQuery, categoryFilter, tagFilter]);
+
+  useEffect(() => {
+    samples.forEach(sample => {
+      if (!wavesurferInstances.current[sample._id]) {
+        const wavesurfer = WaveSurfer.create({
+          container: `#waveform-${sample._id}`,
+          waveColor: '#4F46E5',
+          progressColor: '#3B82F6',
+          cursorColor: '#fff',
+          barWidth: 2,
+          height: 60,
+          responsive: true,
+          hideScrollbar: true,
+        });
+
+        // Assuming the backend provides a direct URL to the audio file for preview
+        // For now, we'll use a placeholder or a direct IPFS gateway link if available
+        // In a real scenario, you might have a dedicated endpoint to stream audio.
+        wavesurfer.load(`http://localhost:3001/api/samples/${sample._id}/download`);
+
+        wavesurferInstances.current[sample._id] = wavesurfer;
+
+        // Add play/pause functionality
+        const playButton = document.getElementById(`play-button-${sample._id}`);
+        if (playButton) {
+          playButton.onclick = () => {
+            wavesurfer.playPause();
+          };
+        }
+      }
+    });
+
+    return () => {
+      // Destroy wavesurfer instances on unmount
+      Object.values(wavesurferInstances.current).forEach(ws => ws.destroy());
+      wavesurferInstances.current = {};
+    };
+  }, [samples]);
 
   return (
     <AppLayout>
@@ -106,12 +147,19 @@ const SampleBrowser: React.FC = () => {
                 {sample.bpm && <span className="bg-purple-600 text-white text-xs px-2 py-1 rounded-full">BPM: {sample.bpm}</span>}
                 {sample.key && <span className="bg-green-600 text-white text-xs px-2 py-1 rounded-full">Key: {sample.key}</span>}
               </div>
-              {/* Placeholder for audio waveform and play button */}
-              <div className="bg-gray-700 h-16 rounded-lg mb-3 flex items-center justify-center">
-                <p className="text-gray-500">Audio Waveform Preview</p>
+              {/* Audio Waveform and Play Button */}
+              <div className="flex items-center justify-between mt-3">
+                <div id={`waveform-${sample._id}`} className="w-3/4 h-16 bg-gray-700 rounded-lg"></div>
+                <button
+                  id={`play-button-${sample._id}`}
+                  className="ml-2 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+                  onClick={() => wavesurferInstances.current[sample._id]?.playPause()}
+                >
+                  Play
+                </button>
               </div>
               <button
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-full"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-full mt-3"
                 onClick={async () => {
                   try {
                     const token = localStorage.getItem('token');

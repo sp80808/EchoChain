@@ -30,10 +30,7 @@ const MyLibrary: React.FC = () => {
           return;
         }
 
-        // Assuming a backend endpoint to fetch user's own samples
-        // For now, we'll fetch all samples and filter by creator ID (placeholder)
-        // In a real scenario, the backend would filter by authenticated user.
-        const response = await fetch(`http://localhost:3001/api/samples`, {
+        const response = await fetch(`http://localhost:3001/api/samples/my`, {
           headers: {
             'x-auth-token': token,
           },
@@ -43,9 +40,7 @@ const MyLibrary: React.FC = () => {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data: Sample[] = await response.json();
-        // Placeholder for filtering by current user's ID
-        // This would ideally be done on the backend
-        setSamples(data.filter(sample => sample.creator.email === 'user@example.com')); // Replace with actual user email/ID
+        setSamples(data);
       } catch (e: any) {
         setError(e.message);
       } finally {

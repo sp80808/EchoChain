@@ -17,9 +17,14 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, navigateTo }) => {
               <button onClick={() => navigateTo('browse')} className="block py-2 px-4 rounded hover:bg-gray-700 transition-colors duration-200 w-full text-left">Explore Samples</button>
             </li>
             <li className="mb-3">
+              <button onClick={() => navigateTo('my-library')} className="block py-2 px-4 rounded hover:bg-gray-700 transition-colors duration-200 w-full text-left">My Library</button>
+            </li>
+            <li className="mb-3">
               <button onClick={() => navigateTo('upload')} className="block py-2 px-4 rounded hover:bg-gray-700 transition-colors duration-200 w-full text-left">Upload</button>
             </li>
-            {/* Add other navigation items */}
+            <li className="mb-3">
+              <button onClick={() => navigateTo('wallet')} className="block py-2 px-4 rounded hover:bg-gray-700 transition-colors duration-200 w-full text-left">Wallet</button>
+            </li>
           </ul>
         </nav>
       </aside>

@@ -180,6 +180,16 @@ router.get('/', async (req, res) => {
 });
 
 // Download Sample
+router.get('/my', auth, async (req, res) => {
+  try {
+    const samples = await Sample.find({ creator: req.user.id }).populate('creator', 'email walletAddress');
+    res.json(samples);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
 router.get('/:id/download', auth, async (req, res) => {
   try {
     const sample = await Sample.findById(req.params.id);

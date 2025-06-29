@@ -107,12 +107,14 @@ import Login from './components/Auth/Login';
 import Register from './components/Auth/Register';
 import SampleBrowser from './pages/SampleBrowser';
 import SampleUpload from './pages/SampleUpload';
+import MyLibrary from './pages/MyLibrary';
+import Wallet from './pages/Wallet';
 import AppLayout from './components/AppLayout';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
-  const [currentPage, setCurrentPage] = useState('browse'); // 'browse', 'upload', 'login', 'register'
+  const [currentPage, setCurrentPage] = useState('browse'); // 'browse', 'upload', 'my-library', 'wallet', 'login', 'register'
 
   // Check for token on initial load
   React.useEffect(() => {
@@ -151,6 +153,8 @@ const App: React.FC = () => {
     <AppLayout navigateTo={navigateTo}>
       {currentPage === 'browse' && <SampleBrowser />}
       {currentPage === 'upload' && <SampleUpload />}
+      {currentPage === 'my-library' && <MyLibrary />}
+      {currentPage === 'wallet' && <Wallet />}
       {/* Add other pages here */}
     </AppLayout>
   );

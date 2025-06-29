@@ -19,14 +19,19 @@ const Wallet: React.FC = () => {
           return;
         }
 
-        // In a real application, this would fetch from a backend API
-        // that queries the blockchain for wallet address and balance.
-        // For now, using a placeholder.
-        const dummyWalletAddress = "ECHO_WALLET_1234567890ABCDEF";
-        const dummyBalance = "1000.00 ECHO";
+        const response = await fetch(`http://localhost:3001/api/auth/me`, {
+          headers: {
+            'x-auth-token': token,
+          },
+        });
 
-        setWalletAddress(dummyWalletAddress);
-        setBalance(dummyBalance);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const userData = await response.json();
+        setWalletAddress(userData.walletAddress);
+        // Placeholder for balance, will be fetched from blockchain later
+        setBalance("1000.00 ECHO");
 
       } catch (e: any) {
         setError(e.message);

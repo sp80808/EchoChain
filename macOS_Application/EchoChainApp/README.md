@@ -37,4 +37,32 @@
 
 ## Integration Guide: Blockchain Client
 
-See `BlockchainClient.md` for a full-featured production-ready Swift blockchain client stub and integration notes. 
+See `BlockchainClient.md` for a full-featured production-ready Swift blockchain client stub and integration notes.
+
+## Swift P2P Client
+
+A production-ready Swift client (`P2PClient.swift`) is provided for interacting with the Python P2P node's local API. This client supports:
+- File upload and announcement
+- Peer/content discovery
+- File download initiation
+
+### Usage Example
+```swift
+let client = P2PClient()
+client.addFileAndAnnounce(filepath: "/path/to/file.wav") { result in
+    switch result {
+    case .success(let fileHash):
+        print("File added and announced with hash: \(fileHash)")
+        client.discoverContentPeers(contentHash: fileHash) { peersResult in
+            print("Peers:", peersResult)
+        }
+    case .failure(let error):
+        print("Error:", error)
+    }
+}
+```
+
+### Integration Notes
+- The client communicates with the Python P2P node via JSON-over-TCP on the local API port (default: 8002).
+- Ensure the Python node is running before using the client.
+- See the file for more details and error handling. 

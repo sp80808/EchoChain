@@ -1,10 +1,10 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import auth from '../middleware/auth';
 import Sample from '../models/Sample';
 import { uploadToIpfs } from '../utils/ipfs';
 import { checkOriginality } from '../utils/audioFingerprinting';
-import { registerSampleOnBlockchain } from '../utils/blockchain';
+import { registerSampleOnBlockchain, getSampleMetadataFromBlockchain } from '../utils/blockchain';
 import { analyzeAudioFile } from '../utils/audioAnalysis';
 import { separateStems } from '../utils/stemSeparation';
 import fs from 'fs';
@@ -142,9 +142,9 @@ router.post('/', [auth, upload.single('sample')], async (req, res) => {
 });
 
 // Get all approved samples
-router.get('/', async (req, res) => {
+router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { category, tags, bpm, key, search } = req.query;
+    const { category, tags, bpm, key, type, search } = req.query;
     const query: any = { status: 'approved' };
 
     if (category) {
@@ -163,6 +163,17 @@ router.get('/', async (req, res) => {
       query.key = key;
     }
 
+    // New: Filter by type (one-shot, loop, fx) using tags
+    if (type) {
+      const typeTags = (type as string).split(',').map(t => t.trim().toLowerCase());
+      query.tags = query.tags || {};
+      if (query.tags.$in) {
+        query.tags.$in = [...query.tags.$in, ...typeTags];
+      } else {
+        query.tags.$in = typeTags;
+      }
+    }
+
     if (search) {
       query.$or = [
         { title: { $regex: search, $options: 'i' } },
@@ -177,7 +188,7 @@ router.get('/', async (req, res) => {
     // For approved samples, simulate fetching metadata from blockchain
     const finalSamples = await Promise.all(samplesFromDb.map(async (sample) => {
       if (sample.status === 'approved') {
-        const blockchainMetadata = await getSampleMetadataFromBlockchain(sample._id.toString());
+        const blockchainMetadata = await getSampleMetadataFromBlockchain((sample._id as any).toString());
         if (blockchainMetadata) {
           return { ...sample.toObject(), ...blockchainMetadata };
         } else {
@@ -191,7 +202,7 @@ router.get('/', async (req, res) => {
 
     res.json(finalSamples);
   } catch (err) {
-    console.error(err.message);
+    console.error((err as Error).message);
     res.status(500).send('Server error');
   }
 });
@@ -375,6 +386,77 @@ router.post('/governance/proposals/:id/vote', auth, async (req, res) => {
     res.status(500).send('Server error');
   }
 });
+
+// Trigger stem separation for an existing sample
+router.post('/:id/separate-stems', auth, async (req, res) => {
+  try {
+    const sample = await Sample.findById(req.params.id);
+    if (!sample) {
+      return res.status(404).json({ msg: 'Sample not found' });
+    }
+
+    // For now, we'll simulate the file path. In a real scenario, you'd need to retrieve the actual file.
+    // This would likely involve downloading from IPFS first.
+    const dummyFilePath = `/tmp/${sample._id}.wav`; // Placeholder
+    // Create a dummy file for the Python script to process
+    fs.writeFileSync(dummyFilePath, "dummy audio data");
+
+    const outputDir = path.join(__dirname, '..', '..', 'uploads', 'stems', sample._id.toString());
+    fs.mkdirSync(outputDir, { recursive: true });
+
+    const separationResult = await separateStems(dummyFilePath, outputDir);
+
+    if (separationResult.success) {
+      const stemFiles = fs.readdirSync(outputDir);
+      for (const stemFile of stemFiles) {
+        const stemFilePath = path.join(outputDir, stemFile);
+        const stemFileContent = fs.readFileSync(stemFilePath);
+        const stemIpfsCid = await uploadToIpfs(stemFileContent);
+
+        const stemMetadata = {
+          title: `${sample.title} - ${stemFile.replace('.wav', '')}`,
+          description: `Stem from ${sample.title}: ${stemFile.replace('.wav', '')}`,
+          category: sample.category,
+          tags: [...sample.tags, 'stem', stemFile.replace('.wav', '')],
+          bpm: sample.bpm,
+          key: sample.key,
+          creator: sample.creator,
+          fileIpfsCid: stemIpfsCid,
+          parentSampleId: sample._id, // Link to the original sample
+        };
+        const stemMetadataIpfsCid = await uploadToIpfs(JSON.stringify(stemMetadata));
+
+        // Register stem on blockchain (placeholder)
+        await registerSampleOnBlockchain(stemIpfsCid, stemMetadataIpfsCid, sample.creator.toString());
+
+        const newStemSample = new Sample({
+          title: stemMetadata.title,
+          description: stemMetadata.description,
+          category: stemMetadata.category,
+          tags: stemMetadata.tags,
+          bpm: stemMetadata.bpm,
+          key: stemMetadata.key,
+          creator: stemMetadata.creator,
+          ipfsCid: stemIpfsCid,
+          metadataIpfsCid: stemMetadataIpfsCid,
+          status: 'pending',
+        });
+        await newStemSample.save();
+      }
+      fs.rmSync(outputDir, { recursive: true, force: true }); // Clean up stem files
+      fs.unlinkSync(dummyFilePath); // Clean up dummy file
+      res.json({ msg: 'Stem separation initiated successfully' });
+    } else {
+      fs.unlinkSync(dummyFilePath); // Clean up dummy file
+      res.status(500).json({ msg: `Stem separation failed: ${separationResult.error}` });
+    }
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+export default router;
 
 // Get all proposals
 router.get('/governance/proposals', async (req, res) => {

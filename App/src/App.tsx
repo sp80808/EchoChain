@@ -9,8 +9,11 @@ import Settings from './pages/Settings';
 import About from './pages/About';
 import Profile from './pages/Profile';
 import Governance from './pages/Governance';
+import Community from './pages/Community';
+import LandingPage from './pages/LandingPage';
 import NotFound from './pages/NotFound';
 import AppLayout from './components/AppLayout';
+import AudioVisualizer from './components/AudioVisualizer';
 
 interface BlockchainStats {
   totalSamples: number;
@@ -22,7 +25,7 @@ interface BlockchainStats {
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
-  const [currentPage, setCurrentPage] = useState('browse'); // 'browse', 'upload', 'my-library', 'wallet', 'settings', 'about', 'profile', 'governance', 'login', 'register'
+  const [currentPage, setCurrentPage] = useState('browse'); // 'browse', 'upload', 'my-library', 'wallet', 'settings', 'about', 'profile', 'governance', 'community', 'login', 'register', 'landing'
   const [blockchainStats, setBlockchainStats] = useState<BlockchainStats | null>(null);
 
   // Check for token on initial load
@@ -32,7 +35,7 @@ const App: React.FC = () => {
       setIsAuthenticated(true);
       setCurrentPage('browse');
     } else {
-      setCurrentPage('login');
+      setCurrentPage('landing'); // Start on landing page if not authenticated
     }
   }, []);
 
@@ -75,11 +78,32 @@ const App: React.FC = () => {
   };
 
   if (!isAuthenticated) {
-    return showRegister ? (
-      <Register onRegisterSuccess={handleRegisterSuccess} />
-    ) : (
-      <Login onLoginSuccess={handleLoginSuccess} onShowRegister={() => setShowRegister(true)} />
-    );
+    if (currentPage === 'login') {
+      return (
+        <div className="relative min-h-screen bg-gray-900 overflow-hidden">
+          <AudioVisualizer />
+          {showRegister ? (
+            <Register onRegisterSuccess={handleRegisterSuccess} />
+          ) : (
+            <Login onLoginSuccess={handleLoginSuccess} onShowRegister={() => setShowRegister(true)} />
+          )}
+        </div>
+      );
+    } else if (currentPage === 'register') {
+      return (
+        <div className="relative min-h-screen bg-gray-900 overflow-hidden">
+          <AudioVisualizer />
+          <Register onRegisterSuccess={handleRegisterSuccess} />
+        </div>
+      );
+    } else {
+      return (
+        <LandingPage
+          onExploreSamples={() => setCurrentPage('login')}
+          onJoinCommunity={() => setCurrentPage('register')}
+        />
+      );
+    }
   }
 
   return (
@@ -92,10 +116,12 @@ const App: React.FC = () => {
       {currentPage === 'about' && <About />}
       {currentPage === 'profile' && <Profile />}
       {currentPage === 'governance' && <Governance />}
+      {currentPage === 'community' && <Community />}
       {/* Fallback for unknown pages */}
-      {!['browse', 'upload', 'my-library', 'wallet', 'settings', 'about', 'profile', 'governance'].includes(currentPage) && <NotFound />}
+      {!['browse', 'upload', 'my-library', 'wallet', 'settings', 'about', 'profile', 'governance', 'community'].includes(currentPage) && <NotFound />}
     </AppLayout>
   );
 };
 
 export default App;
+

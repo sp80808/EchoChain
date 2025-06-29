@@ -67,6 +67,7 @@ struct WalletView: View {
                     .cornerRadius(10)
             }
 
+            /*
             Button(action: {
                 showingImportAlert = true
             }) {
@@ -98,6 +99,7 @@ struct WalletView: View {
             } message: {
                 Text("Please enter your private key to import your wallet.")
             }
+            */
 
             Button(action: {
                 Task {

@@ -42,6 +42,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, navigateTo, blockchainS
                 <button onClick={() => navigateTo('governance')} className="block py-2 px-4 rounded hover:bg-gray-700 transition-colors duration-200 w-full text-left">Governance</button>
               </li>
               <li className="mb-3">
+                <button onClick={() => navigateTo('community')} className="block py-2 px-4 rounded hover:bg-gray-700 transition-colors duration-200 w-full text-left">Community</button>
+              </li>
+              <li className="mb-3">
                 <button onClick={() => navigateTo('about')} className="block py-2 px-4 rounded hover:bg-gray-700 transition-colors duration-200 w-full text-left">About</button>
               </li>
             </ul>

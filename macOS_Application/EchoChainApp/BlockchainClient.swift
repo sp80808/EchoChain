@@ -9,7 +9,6 @@ protocol BlockchainClientProtocol: ObservableObject {
     var transactionHistory: [Transaction] { get }
 
     func createWallet() async throws
-    func importWallet(privateKey: String) async throws
     func fetchBalance() async throws
     func fetchTransactionHistory() async throws
     func signTransaction(from: String, to: String, amount: Double, data: String?) async throws -> String
@@ -24,16 +23,13 @@ class RealBlockchainClient: BlockchainClientProtocol {
     @Published var walletAddress: String = ""
     @Published var transactionHistory: [Transaction] = []
 
-    private var privateKey: String?
     private let nodeURL = URL(string: "http://localhost:9933")! // Update to your node's URL
-    private let keychainService = "com.echochain.wallet"
-    private let keychainAccount = "privateKey"
+    private let secureStorage = SecureStorage()
 
     init() {
-        // Attempt to load private key from Keychain
-        if let storedKey = Self.loadPrivateKey(service: keychainService, account: keychainAccount) {
-            self.privateKey = storedKey
-            self.walletAddress = Self.deriveAddress(from: storedKey)
+        // Attempt to load private key from Secure Enclave
+        if let publicKey = secureStorage.getPublicKey() {
+            self.walletAddress = Self.deriveAddress(from: publicKey)
             Task {
                 await self.fetchBalance()
                 await self.fetchTransactionHistory()
@@ -43,29 +39,25 @@ class RealBlockchainClient: BlockchainClientProtocol {
 
     @MainActor
     func createWallet() async throws {
-        // TODO: Use real cryptography for keypair generation
-        let newPrivateKey = UUID().uuidString // Replace with real key generation
-        guard Self.savePrivateKey(newPrivateKey, service: keychainService, account: keychainAccount) else {
+        guard let privateKey = secureStorage.generateKeyPair() else {
             throw BlockchainClientError.keyStorageFailed
         }
-        self.privateKey = newPrivateKey
-        self.walletAddress = Self.deriveAddress(from: newPrivateKey)
-        // Optionally, fund the wallet or register on-chain
+        guard let publicKey = secureStorage.getPublicKey() else {
+            throw BlockchainClientError.keyStorageFailed
+        }
+        self.walletAddress = Self.deriveAddress(from: publicKey)
         await fetchBalance()
         await fetchTransactionHistory()
     }
 
+    // Temporarily commenting out importWallet due to Secure Enclave limitations
+    /*
     @MainActor
     func importWallet(privateKey: String) async throws {
-        // TODO: Validate private key format
-        guard Self.savePrivateKey(privateKey, service: keychainService, account: keychainAccount) else {
-            throw BlockchainClientError.keyStorageFailed
-        }
-        self.privateKey = privateKey
-        self.walletAddress = Self.deriveAddress(from: privateKey)
-        await fetchBalance()
-        await fetchTransactionHistory()
+        // This functionality needs to be re-evaluated for Secure Enclave
+        throw BlockchainClientError.unsupportedOperation("Importing raw private keys is not supported with Secure Enclave.")
     }
+    */
 
     @MainActor
     func fetchBalance() async throws {
@@ -97,11 +89,17 @@ class RealBlockchainClient: BlockchainClientProtocol {
 
     @MainActor
     func signTransaction(from: String, to: String, amount: Double, data: String?) async throws -> String {
-        guard let privateKey = privateKey else { throw BlockchainClientError.walletNotLoaded }
-        // TODO: Use real cryptography to sign
-        let txData = "\(from)-\(to)-\(amount)-\(data ?? "")"
-        let signed = "signed_\(txData)_with_\(privateKey.prefix(8))" // Replace with real signing
-        return signed
+        // Construct the data to be signed (e.g., a hash of the transaction details)
+        let transactionDetails = "\(from)\(to)\(amount)\(data ?? "")"
+        guard let dataToSign = transactionDetails.data(using: .utf8) else {
+            throw BlockchainClientError.transactionFailed("Failed to encode transaction data for signing.")
+        }
+
+        guard let signature = secureStorage.sign(data: dataToSign) else {
+            throw BlockchainClientError.transactionFailed("Failed to sign transaction.")
+        }
+        // For now, return a base64 encoded signature. In a real scenario, this would be part of a signed transaction object.
+        return signature.base64EncodedString()
     }
 
     @MainActor
@@ -169,83 +167,13 @@ class RealBlockchainClient: BlockchainClientProtocol {
         }
     }
 
-    // MARK: - Keychain Helpers
-    static func savePrivateKey(_ key: String, service: String, account: String) -> Bool {
-        guard let data = key.data(using: .utf8) else { return false }
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecValueData as String: data
-        ]
-        SecItemDelete(query as CFDictionary)
-        let status = SecItemAdd(query as CFDictionary, nil)
-        return status == errSecSuccess
-    }
-
-    static func loadPrivateKey(service: String, account: String) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        var dataTypeRef: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &dataTypeRef)
-        guard status == errSecSuccess, let data = dataTypeRef as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
-    }
-
-    static func deriveAddress(from privateKey: String) -> String {
-        // TODO: Use real address derivation
-        return "echo" + privateKey.prefix(10) + "..." + privateKey.suffix(10)
-    }
-
-    /// Fetch transaction history from a SubQuery GraphQL endpoint
-    /// - Parameters:
-    ///   - account: The account address (hex string)
-    ///   - endpoint: The GraphQL endpoint URL (e.g., http://localhost:3000)
-    /// - Returns: Array of Transaction objects
-    func fetchTransactionHistoryFromGraphQL(account: String, endpoint: URL) async throws -> [Transaction] {
-        let query = """
-        query {\n  transfers(filter: {from: {equalTo: \"\(account)\"}}) {\n    nodes {\n      id\n      from\n      to\n      amount\n      blockNumber\n      timestamp\n    }\n  }\n}\n"""
-        let body: [String: Any] = ["query": query]
-        let bodyData = try JSONSerialization.data(withJSONObject: body)
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = bodyData
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw BlockchainClientError.transactionFailed("Invalid response from indexer")
-        }
-        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        guard let dataDict = json?["data"] as? [String: Any],
-              let transfers = dataDict["transfers"] as? [String: Any],
-              let nodes = transfers["nodes"] as? [[String: Any]] else {
-            throw BlockchainClientError.transactionFailed("Malformed indexer response")
-        }
-        let txs: [Transaction] = nodes.compactMap { node in
-            guard let idStr = node["id"] as? String,
-                  let id = UUID(uuidString: idStr),
-                  let from = node["from"] as? String,
-                  let to = node["to"] as? String,
-                  let amountStr = node["amount"] as? String,
-                  let amount = Double(amountStr),
-                  let timestampStr = node["timestamp"] as? String,
-                  let timestamp = ISO8601DateFormatter().date(from: timestampStr) else { return nil }
-            return Transaction(
-                id: id,
-                type: from == account ? .sent : .received,
-                amount: amount,
-                from: from,
-                to: to,
-                date: timestamp
-            )
-        }
-        return txs
+    // MARK: - Address Derivation
+    static func deriveAddress(from publicKey: SecKey) -> String {
+        // TODO: Implement real address derivation from SecKey (public key)
+        // This is a placeholder. A real implementation would involve hashing the public key
+        // and encoding it according to the blockchain's address format.
+        let keyData = SecKeyCopyExternalRepresentation(publicKey, nil)! as Data
+        return "echo_pub_" + keyData.base64EncodedString().prefix(10)
     }
 }
 
@@ -254,6 +182,7 @@ enum BlockchainClientError: Error, LocalizedError {
     case walletNotLoaded
     case transactionFailed(String)
     case metadataRegistrationFailed(String)
+    case unsupportedOperation(String)
 
     var errorDescription: String? {
         switch self {
@@ -265,6 +194,8 @@ enum BlockchainClientError: Error, LocalizedError {
             return "Transaction failed: \(message)"
         case .metadataRegistrationFailed(let message):
             return "Sample metadata registration failed: \(message)"
+        case .unsupportedOperation(let message):
+            return message
         }
     }
 }

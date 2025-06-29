@@ -62,8 +62,8 @@ struct SampleUploadView: View {
                         // fileURL.startAccessingSecurityScopedResource() and fileURL.stopAccessingSecurityScopedResource()
                         print("Selected file: \(fileURL?.lastPathComponent ?? "N/A")")
                     } catch {
-                        print("Error selecting file: \(error.localizedDescription)")
-                        // TODO: Provide user feedback for file selection errors.
+                        errorMessage = "Failed to select file: \(error.localizedDescription)"
+                        showingErrorAlert = true
                     }
                 }
             }

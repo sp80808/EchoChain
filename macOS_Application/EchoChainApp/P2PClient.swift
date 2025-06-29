@@ -77,7 +77,8 @@ class RealP2PClient: P2PClientProtocol {
         guard isConnected else { return }
         connection?.cancel()
         isConnected = false
-        // Clean up any additional resources if needed
+        // In a real-world scenario, ensure all P2P resources (e.g., open sockets, background tasks)
+        // are properly released and cleaned up upon disconnection to prevent resource leaks.
         print("RealP2PClient: Disconnected from local P2P node API.")
     }
 

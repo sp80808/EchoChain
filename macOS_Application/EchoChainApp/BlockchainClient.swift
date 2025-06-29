@@ -14,6 +14,20 @@ protocol BlockchainClientProtocol: ObservableObject {
     func fetchTransactionHistory() async throws
     func signTransaction(from: String, to: String, amount: Double, data: String?) async throws -> String
     func broadcastTransaction(signedTransaction: String) async throws -> String
+    @MainActor
+    func sendTransaction(to: String, amount: Double) async throws -> String {
+        guard let fromAddress = self.walletAddress else {
+            throw BlockchainClientError.walletNotLoaded
+        }
+        // TODO: Construct a proper extrinsic (transaction) for the Substrate chain.
+        // This will involve encoding the call (e.g., `Balances.transfer`) and its parameters.
+        // For now, we'll use a placeholder `data` for signing.
+        let transactionData = "transfer_\(amount)_to_\(to)"
+        
+        let signedTransaction = try await signTransaction(from: fromAddress, to: to, amount: amount, data: transactionData)
+        let txHash = try await broadcastTransaction(signedTransaction: signedTransaction)
+        return txHash
+    }
     func registerSampleMetadata(title: String, artist: String, p2pContentId: String, blockchainHash: String) async throws -> String
     func checkNodeConnection() async throws -> (chain: String, version: String)
 }
@@ -28,23 +42,27 @@ class RealBlockchainClient: BlockchainClientProtocol {
     private let nodeURL = URL(string: "http://localhost:9933")! // Substrate RPC HTTP port
     private let secureStorage = SecureStorage()
 
-    private var privateKey: Curve25519.Signing.PrivateKey? // TODO: This should be managed more robustly, potentially not stored directly. The SecureStorage should ideally return this type directly.
+    private var privateKey: Curve25519.Signing.PrivateKey? // Manages the private key for signing transactions.
 
     init() {
-        // TODO: Implement proper initialization, potentially loading an existing wallet or prompting for creation.
-        // Attempt to load private key from Secure Enclave
-        if let publicKey = secureStorage.getPublicKey() {
-            self.walletAddress = Self.deriveAddress(from: publicKey)
-            Task {
-                await self.fetchBalance() // TODO: Implement actual balance fetching from blockchain
-                await self.fetchTransactionHistory() // TODO: Implement actual transaction history fetching
+        // Attempt to load an existing wallet from SecureStorage on initialization.
+        do {
+            if let loadedPrivateKey = try secureStorage.getPrivateKey() {
+                self.privateKey = loadedPrivateKey
+                self.walletAddress = Self.deriveAddress(from: loadedPrivateKey.publicKey)
+                Task {
+                    await self.fetchBalance() // Fetch balance for the loaded wallet.
+                    await self.fetchTransactionHistory() // Fetch transaction history for the loaded wallet.
+                }
+            } else {
+                print("No wallet found in SecureStorage. User needs to create or import one.")
             }
-        } else {
-            // No wallet found, prompt user to create or import
-            // This could be a notification, delegate callback, or UI event
-            print("No wallet found. Please create or import a wallet.")
-            // Example: NotificationCenter.default.post(name: .walletNotFound, object: nil)
+        } catch {
+            print("Error loading private key from SecureStorage: \(error.localizedDescription)")
+            // TODO: Handle this error gracefully, perhaps by showing an alert to the user.
         }
+
+        // Check node connection status.
         Task {
             do {
                 let (chain, version) = try await checkNodeConnection()
@@ -71,19 +89,19 @@ class RealBlockchainClient: BlockchainClientProtocol {
     @MainActor
     func createWallet() async throws {
         // Generate a Curve25519 keypair and store private key in Keychain
-        let privateKey = Curve25519.Signing.PrivateKey()
-        let publicKey = privateKey.publicKey
-        try secureStorage.savePrivateKey(privateKey)
-        self.walletAddress = Self.deriveAddress(from: publicKey)
-        self.privateKey = privateKey as? SecKey
+        let newPrivateKey = try secureStorage.generateKeyPair()
+        self.privateKey = newPrivateKey
+        self.walletAddress = Self.deriveAddress(from: newPrivateKey.publicKey)
+        // TODO: After creating a new wallet, consider fetching initial balance and history.
     }
 
     func importWallet(privateKeyData: Data) async throws {
         // Import a Curve25519 private key from data and store in Keychain
-        let privateKey = try Curve25519.Signing.PrivateKey(rawRepresentation: privateKeyData)
-        try secureStorage.savePrivateKey(privateKey)
-        self.walletAddress = Self.deriveAddress(from: privateKey.publicKey)
-        self.privateKey = privateKey as? SecKey
+        let importedPrivateKey = try Curve25519.Signing.PrivateKey(rawRepresentation: privateKeyData)
+        try secureStorage.savePrivateKey(importedPrivateKey)
+        self.privateKey = importedPrivateKey
+        self.walletAddress = Self.deriveAddress(from: importedPrivateKey.publicKey)
+        // TODO: After importing a wallet, consider fetching initial balance and history.
     }
 
     @MainActor

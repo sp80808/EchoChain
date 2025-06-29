@@ -2,7 +2,7 @@ import SwiftUI
 
 struct WalletView: View {
     @StateObject private var blockchainClient = RealBlockchainClient()
-    @StateObject private var secureStorage = SecureStorage() // TODO: SecureStorage needs to be fully implemented for secure key management.
+    @StateObject private var secureStorage = SecureStorage()
     @State private var walletAddress: String = "Loading..."
     @State private var showingImportAlert = false
     @State private var importPrivateKeyInput: String = ""
@@ -52,9 +52,8 @@ struct WalletView: View {
             Button(action: {
                 Task {
                     do {
-                        // TODO: Implement actual wallet creation on the blockchain and secure storage.
                         try await blockchainClient.createWallet()
-                        walletAddress = blockchainClient.walletAddress
+                        // walletAddress will be updated via .onChange
                     } catch {
                         errorMessage = error.localizedDescription
                         showingErrorAlert = true
@@ -70,8 +69,6 @@ struct WalletView: View {
                     .cornerRadius(10)
             }
 
-            /*
-            // TODO: Re-enable and implement robust wallet import functionality, considering security best practices.
             Button(action: {
                 showingImportAlert = true
             }) {
@@ -84,12 +81,17 @@ struct WalletView: View {
                     .cornerRadius(10)
             }
             .alert("Import Wallet", isPresented: $showingImportAlert) {
-                TextField("Private Key", text: $importPrivateKeyInput)
+                TextField("Private Key (Hex or Base64)", text: $importPrivateKeyInput)
                 Button("Import") {
                     Task {
                         do {
-                            try await blockchainClient.importWallet(privateKey: importPrivateKeyInput)
-                            walletAddress = blockchainClient.walletAddress
+                            guard let privateKeyData = Data(hex: importPrivateKeyInput) ?? Data(base64Encoded: importPrivateKeyInput) else {
+                                errorMessage = "Invalid private key format. Please use Hex or Base64."
+                                showingErrorAlert = true
+                                return
+                            }
+                            try await blockchainClient.importWallet(privateKeyData: privateKeyData)
+                            // walletAddress will be updated via .onChange
                             importPrivateKeyInput = "" // Clear input
                         } catch {
                             errorMessage = error.localizedDescription
@@ -101,9 +103,8 @@ struct WalletView: View {
                     importPrivateKeyInput = ""
                 }
             } message: {
-                Text("Please enter your private key to import your wallet.")
+                Text("WARNING: Importing a private key directly is risky. Ensure you understand the security implications. Please enter your private key in Hex or Base64 format.")
             }
-            */
 
             Button(action: {
                 Task {
@@ -178,12 +179,9 @@ struct WalletView: View {
                                         return
                                     }
                                     
-                                    // TODO: Implement actual transaction sending via blockchainClient.
-                                    // This will involve signing the transaction with the secureStorage and broadcasting it.
                                     try await blockchainClient.sendTransaction(
                                         to: sendAddress,
-                                        amount: amount,
-                                        signer: secureStorage // TODO: Ensure secureStorage provides a proper signer interface.
+                                        amount: amount
                                     )
                                     showingSendView = false
                                     sendAmount = ""

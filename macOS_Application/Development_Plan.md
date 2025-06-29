@@ -10,7 +10,7 @@ This document outlines the key development areas and tasks required to complete 
 - [ ] Display current ECHO token balance and transaction history.
 - [ ] Integrate with `BlockchainClient.swift` for on-chain balance queries.
 - [ ] Implement send/receive ECHO token functionality.
-- [ ] Enhance `SecureStorage.swift` for robust key management (e.g., using Keychain services).
+- [x] Enhance `SecureStorage.swift` for robust key management (e.g., using Keychain services).
 
 ### 1.2 Sample Browsing (`SampleBrowserView.swift`)
 - [ ] Implement fetching and displaying a list of available audio samples from the backend API.

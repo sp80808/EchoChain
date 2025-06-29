@@ -1,120 +1,29 @@
-import React, { useState } from 'react';
-import { 
-  Music, 
-  Users, 
-  Shield, 
-  Zap, 
-  Database, 
-  Cloud, 
-  Lock, 
-  Cpu, 
-  Globe,
-  Code,
-  FileText,
-  ArrowRight,
-  Check,
-  GitBranch,
-  Server,
-  Smartphone,
-  ChevronDown,
-  ChevronUp
-} from 'lucide-react';
-
-interface SectionProps {
-  title: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-  defaultOpen?: boolean;
-}
-
-function CollapsibleSection({ title, icon, children, defaultOpen = true }: SectionProps) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-  
-  return (
-    <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-8 py-6 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-100 flex items-center justify-between hover:from-blue-100 hover:to-purple-100 transition-all duration-200"
-      >
-        <div className="flex items-center space-x-4">
-          <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg text-white">
-            {icon}
-          </div>
-          <h2 className="text-2xl font-bold text-gray-800">{title}</h2>
-        </div>
-        {isOpen ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
-      </button>
-      {isOpen && (
-        <div className="p-8">
-          {children}
-        </div>
-      )}
-    </div>
-  );
-}
-
-interface CodeBlockProps {
-  language: string;
-  children: string;
-}
-
-function CodeBlock({ language, children }: CodeBlockProps) {
-  return (
-    <div className="bg-gray-900 rounded-lg overflow-hidden my-4">
-      <div className="bg-gray-800 px-4 py-2 text-gray-300 text-sm font-medium">
-        {language}
-      </div>
-      <pre className="p-4 text-green-400 text-sm overflow-x-auto">
-        <code>{children}</code>
-      </pre>
-    </div>
-  );
-}
-
-interface FeatureCardProps {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  technologies: string[];
-}
-
-function FeatureCard({ icon, title, description, technologies }: FeatureCardProps) {
-  return (
-    <div className="bg-gradient-to-br from-white to-gray-50 rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-all duration-300 hover:scale-105">
-      <div className="flex items-center space-x-3 mb-4">
-        <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg text-white">
-          {icon}
-        </div>
-        <h3 className="text-lg font-bold text-gray-800">{title}</h3>
-      </div>
-      <p className="text-gray-600 mb-4">{description}</p>
-      <div className="flex flex-wrap gap-2">
-        {technologies.map((tech, index) => (
-          <span
-            key={index}
-            className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium"
-          >
-            {tech}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Login from './components/Auth/Login';
 import Register from './components/Auth/Register';
 import SampleBrowser from './pages/SampleBrowser';
 import SampleUpload from './pages/SampleUpload';
 import MyLibrary from './pages/MyLibrary';
 import Wallet from './pages/Wallet';
+import Settings from './pages/Settings';
+import About from './pages/About';
+import Profile from './pages/Profile';
+import Governance from './pages/Governance';
+import NotFound from './pages/NotFound';
 import AppLayout from './components/AppLayout';
+
+interface BlockchainStats {
+  totalSamples: number;
+  totalCreators: number;
+  totalNetworkStorage: string;
+  monthlyRewardsDistributed: number;
+}
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
-  const [currentPage, setCurrentPage] = useState('browse'); // 'browse', 'upload', 'my-library', 'wallet', 'login', 'register'
+  const [currentPage, setCurrentPage] = useState('browse'); // 'browse', 'upload', 'my-library', 'wallet', 'settings', 'about', 'profile', 'governance', 'login', 'register'
+  const [blockchainStats, setBlockchainStats] = useState<BlockchainStats | null>(null);
 
   // Check for token on initial load
   React.useEffect(() => {
@@ -125,6 +34,26 @@ const App: React.FC = () => {
     } else {
       setCurrentPage('login');
     }
+  }, []);
+
+  // Fetch blockchain stats
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await fetch('http://localhost:3001/api/samples/stats');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data: BlockchainStats = await response.json();
+        setBlockchainStats(data);
+      } catch (error) {
+        console.error('Failed to fetch blockchain stats:', error);
+      }
+    };
+    fetchStats();
+    // Refresh stats periodically
+    const interval = setInterval(fetchStats, 60000); // Every minute
+    return () => clearInterval(interval);
   }, []);
 
   const handleLoginSuccess = () => {
@@ -138,6 +67,10 @@ const App: React.FC = () => {
   };
 
   const navigateTo = (page: string) => {
+    if (page === 'login') {
+      setIsAuthenticated(false);
+      localStorage.removeItem('token');
+    }
     setCurrentPage(page);
   };
 
@@ -150,17 +83,19 @@ const App: React.FC = () => {
   }
 
   return (
-    <AppLayout navigateTo={navigateTo}>
+    <AppLayout navigateTo={navigateTo} blockchainStats={blockchainStats}>
       {currentPage === 'browse' && <SampleBrowser />}
       {currentPage === 'upload' && <SampleUpload />}
       {currentPage === 'my-library' && <MyLibrary />}
       {currentPage === 'wallet' && <Wallet />}
-      {/* Add other pages here */}
+      {currentPage === 'settings' && <Settings />}
+      {currentPage === 'about' && <About />}
+      {currentPage === 'profile' && <Profile />}
+      {currentPage === 'governance' && <Governance />}
+      {/* Fallback for unknown pages */}
+      {!['browse', 'upload', 'my-library', 'wallet', 'settings', 'about', 'profile', 'governance'].includes(currentPage) && <NotFound />}
     </AppLayout>
   );
 };
-
-export default App;
-
 
 export default App;

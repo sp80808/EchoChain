@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import AppLayout from '../components/AppLayout';
+import LoadingSpinner from '../components/LoadingSpinner';
+import TipModal from '../components/TipModal';
 import WaveSurfer from 'wavesurfer.js';
 
 interface Sample {
@@ -21,6 +23,9 @@ const SampleBrowser: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
   const [tagFilter, setTagFilter] = useState<string>('');
+  const [isTipModalOpen, setIsTipModalOpen] = useState(false);
+  const [selectedCreatorEmail, setSelectedCreatorEmail] = useState('');
+  const [selectedSampleId, setSelectedSampleId] = useState('');
   const wavesurferInstances = useRef<{ [key: string]: WaveSurfer }>({});
 
   useEffect(() => {
@@ -92,6 +97,12 @@ const SampleBrowser: React.FC = () => {
     };
   }, [samples]);
 
+  const handleTip = (amount: number) => {
+    console.log(`Tipping ${amount} ECHO to ${selectedCreatorEmail}`);
+    // TODO: Integrate with backend API for tipping (blockchain interaction)
+    alert(`Successfully tipped ${amount} ECHO to ${selectedCreatorEmail}! (Simulated)`);
+  };
+
   return (
     <AppLayout>
       <div className="container mx-auto">
@@ -102,7 +113,7 @@ const SampleBrowser: React.FC = () => {
           <input
             type="text"
             placeholder="Search samples..."
-            className="flex-1 p-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-blue-500"
+            className="flex-1 p-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-blue-500 placeholder-gray-500"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -121,13 +132,13 @@ const SampleBrowser: React.FC = () => {
           <input
             type="text"
             placeholder="Filter by tags (comma-separated)"
-            className="flex-1 p-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-blue-500"
+            className="flex-1 p-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-blue-500 placeholder-gray-500"
             value={tagFilter}
             onChange={(e) => setTagFilter(e.target.value)}
           />
         </div>
 
-        {loading && <p className="text-center text-blue-400">Loading samples...</p>}
+        {loading && <LoadingSpinner />}
         {error && <p className="text-center text-red-500">Error: {error}</p>}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -135,7 +146,7 @@ const SampleBrowser: React.FC = () => {
             <p className="col-span-full text-center text-gray-500">No samples found.</p>
           )}
           {samples.map((sample) => (
-            <div key={sample._id} className="bg-gray-800 rounded-lg shadow-md p-4">
+            <div key={sample._id} className="bg-gray-800 rounded-lg shadow-md p-4 border border-gray-700">
               <h3 className="text-xl font-semibold mb-2">{sample.title}</h3>
               <p className="text-gray-400 text-sm mb-2">By: {sample.creator.email}</p>
               <p className="text-gray-300 text-sm mb-3">{sample.description}</p>
@@ -159,7 +170,7 @@ const SampleBrowser: React.FC = () => {
                 </button>
               </div>
               <button
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-full mt-3"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-full mt-3 transition-colors duration-200"
                 onClick={async () => {
                   try {
                     const token = localStorage.getItem('token');
@@ -189,10 +200,27 @@ const SampleBrowser: React.FC = () => {
               >
                 Download
               </button>
+              <button
+                className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded w-full mt-2 transition-colors duration-200"
+                onClick={() => {
+                  setSelectedCreatorEmail(sample.creator.email);
+                  setSelectedSampleId(sample._id);
+                  setIsTipModalOpen(true);
+                }}
+              >
+                Tip Creator
+              </button>
             </div>
           ))}
         </div>
       </div>
+      <TipModal
+        isOpen={isTipModalOpen}
+        onClose={() => setIsTipModalOpen(false)}
+        sampleId={selectedSampleId}
+        creatorEmail={selectedCreatorEmail}
+        onTipSuccess={() => alert('Tip sent successfully!')}
+      />
     </AppLayout>
   );
 };

@@ -261,53 +261,38 @@ parameter_types! {
 
 impl pallet_transaction_payment::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type OnChargeTransaction = CurrencyAdapter<Balances, ()>;
-	type OperationalFeeMultiplier = ConstU8<5>;
+	type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees>;
+	type OperationalFeeMultiplier = OperationalFeeMultiplier;
 	type WeightToFee = IdentityFee<Balance>;
-	type LengthToFee = IdentityFee<Balance>;
-	type FeeMultiplierUpdate = ConstFeeMultiplier<FeeMultiplier>;
+	type LengthToFee = ConstantMultiplier<Balance, TransactionByteFee>;
+	type FeeMultiplierUpdate = TargetedFeeAdjustment<
+		Self,
+		TargetBlockFullness,
+		AdjustmentVariable,
+		MinimumMultiplier,
+		MaximumMultiplier,
+	>;
 }
 
-impl pallet_sudo::Config for Runtime {
+impl pallet_sample_registry::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type RuntimeCall = RuntimeCall;
-	type WeightInfo = pallet_sudo::weights::SubstrateWeight<Runtime>;
-}
-
-/// Configure the pallet-template in pallets/template.
-impl pallet_template::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type WeightInfo = pallet_template::weights::SubstrateWeight<Runtime>;
-}
-
-/// Configure the pallet-proof-of-contribution.
-parameter_types! {
-    pub const ProofOfContributionPalletId: PalletId = PalletId(*b"poc_modl");
+	type MaxIpfsCidLength = ConstU32<256>;
 }
 
 impl pallet_proof_of_contribution::Config for Runtime {
-    type RuntimeEvent = RuntimeEvent;
-    type Currency = Balances;
-    type ContributionReward = ConstU128<100>; // Example: 100 units of reward per contribution unit
-    type ModuleId = ProofOfContributionPalletId;
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type ContentRewardAmount = ConstU128<100_000_000_000_000>; // 100 ECHO (assuming 12 decimals)
+	type MinSamplesForContentReward = ConstU32<5>;
+	type NetworkRewardPeriod = ConstU32<DAYS>; // Daily for testing, monthly in production
+	type TreasuryAccount = TreasuryAccount;
 }
 
-// Create the runtime by composing the FRAME pallets that were previously configured.
-construct_runtime!(
-	pub struct Runtime {
-		System: frame_system,
-		Timestamp: pallet_timestamp,
-		Aura: pallet_aura,
-		Grandpa: pallet_grandpa,
-		Balances: pallet_balances,
-		TransactionPayment: pallet_transaction_payment,
-		Sudo: pallet_sudo,
-		// Include the custom logic from the pallet-template in the runtime.
-		TemplateModule: pallet_template,
-		// Include the Proof-of-Contribution pallet in the runtime.
-		ProofOfContribution: pallet_proof_of_contribution,
-	}
-);
+parameter_types! {
+	pub const MinimumPeriod: Moment = SLOT_DURATION / 2;
+}
+
+impl pallet_timestamp::Config for Runtime {
 
 /// The address format for describing accounts.
 pub type Address = sp_runtime::MultiAddress<AccountId, ()>;

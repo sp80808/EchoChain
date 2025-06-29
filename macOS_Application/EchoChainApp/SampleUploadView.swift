@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 import CryptoKit
 
 struct SampleUploadView: View {
-    @StateObject private var blockchainClient = SimulatedBlockchainClient()
+    @StateObject private var blockchainClient = RealBlockchainClient()
     @StateObject private var p2pClient = RealP2PClient() // Use RealP2PClient
 
     @State private var sampleTitle: String = ""

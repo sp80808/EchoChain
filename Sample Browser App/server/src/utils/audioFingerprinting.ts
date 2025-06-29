@@ -9,7 +9,7 @@ export const checkOriginality = async (filePath: string): Promise<boolean> => {
   // Simulate an API call delay
   await new Promise(resolve => setTimeout(resolve, 1000));
 
-  // For now, always return true to allow samples to pass.
-  // In a real implementation, this would be based on the API response.
+  // TODO: Integrate with a real audio fingerprinting API (e.g., ACRCloud, AudD) and handle API response.
+  // Remove simulated always-true logic.
   return true;
 };

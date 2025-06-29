@@ -1,0 +1,57 @@
+[package]
+name = "pallet-proof-of-contribution"
+version = "4.0.0-dev"
+description = "FRAME pallet for managing Proof-of-Contribution rewards on EchoChain."
+authors = ["EchoChain Team <info@echochain.xyz>"]
+homepage = "https://echochain.xyz/"
+edition = "2021"
+license = "MIT-0"
+publish = false
+repository = "https://github.com/echochain/echochain-node/"
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = ["derive"] }
+scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
+
+frame-support = { version = "4.0.0-dev", default-features = false, path = "../../../frame/support" }
+frame-system = { version = "4.0.0-dev", default-features = false, path = "../../../frame/system" }
+frame-benchmarking = { version = "4.0.0-dev", default-features = false, path = "../../../frame/benchmarking", optional = true }
+frame-executive = { version = "4.0.0-dev", default-features = false, path = "../../../frame/executive" }
+
+sp-std = { version = "8.0.0", default-features = false, path = "../../../primitives/std" }
+sp-runtime = { version = "24.0.0", default-features = false, path = "../../../primitives/runtime" }
+
+# Pallets that this pallet interacts with
+pallet-balances = { version = "4.0.0-dev", default-features = false, path = "../../../frame/balances" }
+pallet-timestamp = { version = "4.0.0-dev", default-features = false, path = "../../../frame/timestamp" }
+pallet-sample-registry = { version = "4.0.0-dev", default-features = false, path = "../sample-registry" }
+
+[dev-dependencies]
+sp-core = { version = "21.0.0", default-features = false, path = "../../../primitives/core" }
+sp-io = { version = "23.0.0", default-features = false, path = "../../../primitives/io" }
+
+[features]
+default = ["std"]
+std = [
+    "codec/std",
+    "scale-info/std",
+    "frame-support/std",
+    "frame-system/std",
+    "frame-benchmarking/std",
+    "frame-executive/std",
+    "sp-std/std",
+    "sp-runtime/std",
+    "pallet-balances/std",
+    "pallet-timestamp/std",
+    "pallet-sample-registry/std",
+    "sp-core/std",
+    "sp-io/std",
+]
+runtime-benchmarks = [
+    "frame-benchmarking/runtime-benchmarks",
+    "frame-support/runtime-benchmarks",
+    "frame-system/runtime-benchmarks",
+    "pallet-balances/runtime-benchmarks",
+    "pallet-timestamp/runtime-benchmarks",
+    "pallet-sample-registry/runtime-benchmarks",
+]

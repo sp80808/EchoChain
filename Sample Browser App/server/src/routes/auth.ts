@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from '../auth/User';
+import { getWalletBalanceFromBlockchain } from '../utils/blockchain';
 
 const router = Router();
 
@@ -67,7 +68,8 @@ router.post('/login', async (req, res) => {
 router.get('/me', auth, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('-passwordHash');
-    res.json(user);
+    const balance = await getWalletBalanceFromBlockchain(user.walletAddress);
+    res.json({ ...user.toObject(), balance });
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server error');

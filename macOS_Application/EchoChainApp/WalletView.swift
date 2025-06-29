@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct WalletView: View {
-    @StateObject private var blockchainClient = BlockchainClient()
+    @StateObject private var blockchainClient = RealBlockchainClient()
     @StateObject private var secureStorage = SecureStorage()
     @State private var walletAddress: String = "Loading..."
     @State private var showingImportAlert = false

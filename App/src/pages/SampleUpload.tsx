@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import AppLayout from '../components/AppLayout';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const SampleUpload: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
@@ -82,7 +83,7 @@ const SampleUpload: React.FC = () => {
         {message && <p className="text-green-500 text-center mb-4">{message}</p>}
         {error && <p className="text-red-500 text-center mb-4">{error}</p>}
 
-        <form onSubmit={handleSubmit} className="bg-gray-800 p-6 rounded-lg shadow-md">
+        <form onSubmit={handleSubmit} className="bg-gray-800 p-6 rounded-lg shadow-md border border-gray-700">
           <div className="mb-4">
             <label htmlFor="file" className="block text-gray-300 text-sm font-bold mb-2">Audio File</label>
             <input
@@ -100,7 +101,7 @@ const SampleUpload: React.FC = () => {
             <input
               type="text"
               id="title"
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-gray-700 border-gray-600"
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-gray-700 border-gray-600 placeholder-gray-500"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               required
@@ -112,7 +113,7 @@ const SampleUpload: React.FC = () => {
             <textarea
               id="description"
               rows={3}
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-gray-700 border-gray-600"
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-gray-700 border-gray-600 placeholder-gray-500"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               required
@@ -142,7 +143,7 @@ const SampleUpload: React.FC = () => {
             <input
               type="text"
               id="tags"
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-gray-700 border-gray-600"
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-gray-700 border-gray-600 placeholder-gray-500"
               value={tags}
               onChange={(e) => setTags(e.target.value)}
               required
@@ -154,7 +155,7 @@ const SampleUpload: React.FC = () => {
             <input
               type="number"
               id="bpm"
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-gray-700 border-gray-600"
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-gray-700 border-gray-600 placeholder-gray-500"
               value={bpm}
               onChange={(e) => setBpm(e.target.value)}
             />
@@ -165,7 +166,7 @@ const SampleUpload: React.FC = () => {
             <input
               type="text"
               id="key"
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-gray-700 border-gray-600"
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-gray-700 border-gray-600 placeholder-gray-500"
               value={key}
               onChange={(e) => setKey(e.target.value)}
             />
@@ -185,13 +186,14 @@ const SampleUpload: React.FC = () => {
           <div className="flex items-center justify-between">
             <button
               type="submit"
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full transition-colors duration-200"
               disabled={loading}
             >
-              {loading ? 'Uploading...' : 'Upload Sample'}
+              {loading ? <LoadingSpinner /> : 'Upload Sample'}
             </button>
           </div>
         </form>
+
       </div>
     </AppLayout>
   );

@@ -27,16 +27,24 @@ export const separateStems = (filePath: string, outputDir: string): Promise<Stem
       if (code === 0) {
         try {
           const result: StemSeparationResult = JSON.parse(stdout);
-          resolve(result);
-        } catch (e) {
-          reject(new Error(`Failed to parse Python script output: ${e.message}. Output: ${stdout}`));
+          if (result.error) {
+            console.error(`Python script reported an error: ${result.error}`);
+            reject(new Error(`Stem separation failed: ${result.error}`));
+          } else {
+            resolve(result);
+          }
+        } catch (e: any) {
+          console.error(`Failed to parse Python script output: ${e.message}. Output: ${stdout}`);
+          reject(new Error(`Failed to parse Python script output: ${e.message}`));
         }
       } else {
-        reject(new Error(`Python script exited with code ${code}. Error: ${stderr}`));
+        console.error(`Python script exited with code ${code}. Stderr: ${stderr}`);
+        reject(new Error(`Python script exited with code ${code}. Stderr: ${stderr}`));
       }
     });
 
     pythonProcess.on('error', (err) => {
+      console.error(`Failed to start Python process: ${err.message}`);
       reject(new Error(`Failed to start Python process: ${err.message}`));
     });
   });

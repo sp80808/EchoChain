@@ -25,6 +25,15 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, navigateTo }) => {
             <li className="mb-3">
               <button onClick={() => navigateTo('wallet')} className="block py-2 px-4 rounded hover:bg-gray-700 transition-colors duration-200 w-full text-left">Wallet</button>
             </li>
+            <li className="mb-3">
+              <button onClick={() => navigateTo('settings')} className="block py-2 px-4 rounded hover:bg-gray-700 transition-colors duration-200 w-full text-left">Settings</button>
+            </li>
+            <li className="mb-3">
+              <button onClick={() => {
+                localStorage.removeItem('token');
+                navigateTo('login');
+              }} className="block py-2 px-4 rounded hover:bg-gray-700 transition-colors duration-200 w-full text-left text-red-400">Logout</button>
+            </li>
           </ul>
         </nav>
       </aside>

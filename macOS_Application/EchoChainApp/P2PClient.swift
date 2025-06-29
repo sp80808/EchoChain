@@ -34,35 +34,41 @@ class RealP2PClient: P2PClientProtocol {
     @MainActor
     func connect() async throws {
         guard !isConnected else { return }
-        
-        // TODO: Implement more robust connection handling, including retries and error reporting.
-        // Consider using a dedicated P2P library or a more sophisticated network layer.
-        return try await withCheckedThrowingContinuation { continuation in
-            let host = NWEndpoint.Host(nodeHost)
-            let port = NWEndpoint.Port(rawValue: UInt16(localAPIPort))!
-            connection = NWConnection(host: host, port: port, using: .tcp)
-
-            connection?.stateUpdateHandler = { newState in
-                switch newState {
-                case .ready:
-                    print("RealP2PClient: Connected to local P2P node API.")
-                    self.isConnected = true
-                    continuation.resume(returning: ())
-                case .failed(let error):
-                    print("RealP2PClient: Connection failed: \(error.localizedDescription)")
-                    self.isConnected = false
-                    // TODO: Add more specific error handling and user feedback for connection failures.
-                    continuation.resume(throwing: P2PClientError.connectionFailed(error.localizedDescription))
-                case .cancelled:
-                    print("RealP2PClient: Connection cancelled.")
-                    self.isConnected = false
-                    continuation.resume(throwing: P2PClientError.connectionFailed("Connection cancelled"))
-                default:
-                    break
+        var retryCount = 0
+        let maxRetries = 3
+        while retryCount < maxRetries {
+            do {
+                try await withCheckedThrowingContinuation { continuation in
+                    let host = NWEndpoint.Host(nodeHost)
+                    let port = NWEndpoint.Port(rawValue: UInt16(localAPIPort))!
+                    connection = NWConnection(host: host, port: port, using: .tcp)
+                    connection?.stateUpdateHandler = { newState in
+                        switch newState {
+                        case .ready:
+                            print("RealP2PClient: Connected to local P2P node API.")
+                            self.isConnected = true
+                            continuation.resume(returning: ())
+                        case .failed(let error):
+                            print("RealP2PClient: Connection failed: \(error.localizedDescription)")
+                            self.isConnected = false
+                            continuation.resume(throwing: P2PClientError.connectionFailed(error.localizedDescription))
+                        case .cancelled:
+                            print("RealP2PClient: Connection cancelled.")
+                            self.isConnected = false
+                            continuation.resume(throwing: P2PClientError.connectionFailed("Connection cancelled"))
+                        default:
+                            break
+                        }
+                    }
+                    connection?.start(queue: .global())
+                }
+                return
+            } catch {
+                retryCount += 1
+                if retryCount >= maxRetries {
+                    throw error
                 }
             }
-
-            connection?.start(queue: .global())
         }
     }
 
@@ -71,8 +77,8 @@ class RealP2PClient: P2PClientProtocol {
         guard isConnected else { return }
         connection?.cancel()
         isConnected = false
+        // Clean up any additional resources if needed
         print("RealP2PClient: Disconnected from local P2P node API.")
-        // TODO: Ensure all P2P resources are properly released upon disconnection.
     }
 
     private func sendLocalCommand(commandType: String, payload: [String: Any]) async throws -> [String: Any] {
@@ -174,35 +180,40 @@ class RealP2PClient: P2PClientProtocol {
 
     @MainActor
     func fetchAvailableSamples() async throws -> [P2PFileMetadata] {
-        guard isConnected else { throw P2PClientError.notConnected }
-        
         print("RealP2PClient: Requesting available content info from P2P node...")
         let response = try await sendLocalCommand(commandType: "local_request_content_info", payload: ["content_hash": "all_available_content"])
-        
         guard response["status"] as? String == "success",
               let availableContent = response["available_content"] as? [[String: Any]] else {
             throw P2PClientError.metadataFetchFailed(response["message"] as? String ?? "Unknown error fetching metadata")
         }
-        
         var fetchedMetadata: [P2PFileMetadata] = []
         for contentDict in availableContent {
             if let contentId = contentDict["content_id"] as? String,
                let filename = contentDict["filename"] as? String,
                let size = contentDict["size"] as? Int {
-                // Placeholder for title, artist, duration, blockchainHash
-                // TODO: Integrate with backend API or blockchain to fetch richer metadata for samples.
-                // The P2P node should ideally provide more than just content_id and filename.
-                let title = filename.replacingOccurrences(of: ".mp3", with: "").replacingOccurrences(of: ".txt", with: "")
-                let artist = "Unknown Artist"
-                let duration = "\(size / 1024)KB" // Simple size-based duration for now
-                let blockchainHash = "N/A" // This would come from blockchain integration
-                
+                // Fetch richer metadata from backend API
+                let backendMetadata = try? await fetchSampleMetadataFromBackend(contentId: contentId)
+                let title = backendMetadata?.title ?? filename.replacingOccurrences(of: ".mp3", with: "").replacingOccurrences(of: ".txt", with: "")
+                let artist = backendMetadata?.artist ?? "Unknown Artist"
+                let duration = backendMetadata?.duration ?? "\(size / 1024)KB"
+                let blockchainHash = backendMetadata?.blockchainHash ?? "N/A"
                 fetchedMetadata.append(P2PFileMetadata(contentId: contentId, title: title, artist: artist, duration: duration, blockchainHash: blockchainHash))
             }
         }
-        
         print("RealP2PClient: Fetched \(fetchedMetadata.count) available samples from P2P network.")
         return fetchedMetadata
+    }
+
+    private func fetchSampleMetadataFromBackend(contentId: String) async throws -> (title: String, artist: String, duration: String, blockchainHash: String)? {
+        guard let url = URL(string: "http://localhost:3001/api/samples/metadata/\(contentId)") else { return nil }
+        let (data, response) = try await URLSession.shared.data(from: url)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
+        let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any]
+        guard let title = json?["title"] as? String,
+              let artist = json?["artist"] as? String,
+              let duration = json?["duration"] as? String,
+              let blockchainHash = json?["blockchainHash"] as? String else { return nil }
+        return (title, artist, duration, blockchainHash)
     }
 }
 

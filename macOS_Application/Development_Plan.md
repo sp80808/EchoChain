@@ -34,7 +34,7 @@ This document outlines the key development areas and tasks required to complete 
 - [ ] Integrate with the main app for displaying P2P status.
 
 ## 2. Blockchain Integration (`BlockchainClient.swift`)
-- [ ] Implement connection to the EchoChain blockchain node.
+- [x] Implement connection to the EchoChain blockchain node. (Docker setup and basic Swift client connectivity check added)
 - [ ] Develop methods for interacting with smart contracts (e.g., token transfers, sample listing, purchase).
 - [ ] Handle blockchain transaction signing and submission.
 - [ ] Implement event listeners for on-chain activities relevant to the user (e.g., new rewards, purchase confirmations).

@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import Security
+import CryptoKit
 
 // Protocol to define the interface for blockchain interactions
 protocol BlockchainClientProtocol: ObservableObject {
@@ -69,33 +70,27 @@ class RealBlockchainClient: BlockchainClientProtocol {
 
     @MainActor
     func createWallet() async throws {
-        // TODO: Implement actual wallet creation on the blockchain (e.g., generate a new key pair and register it).
-        guard let privateKey = secureStorage.generateKeyPair() else {
-            throw BlockchainClientError.keyStorageFailed
-        }
-        guard let publicKey = secureStorage.getPublicKey() else {
-            throw BlockchainClientError.keyStorageFailed
-        }
+        // Generate a Curve25519 keypair and store private key in Keychain
+        let privateKey = Curve25519.Signing.PrivateKey()
+        let publicKey = privateKey.publicKey
+        try secureStorage.savePrivateKey(privateKey)
         self.walletAddress = Self.deriveAddress(from: publicKey)
-        await fetchBalance()
-        await fetchTransactionHistory()
+        self.privateKey = privateKey as? SecKey
     }
 
-    // Temporarily commenting out importWallet due to Secure Enclave limitations
-    /*
-    @MainActor
-    func importWallet(privateKey: String) async throws {
-        // This functionality needs to be re-evaluated for Secure Enclave
-        throw BlockchainClientError.unsupportedOperation("Importing raw private keys is not supported with Secure Enclave.")
+    func importWallet(privateKeyData: Data) async throws {
+        // Import a Curve25519 private key from data and store in Keychain
+        let privateKey = try Curve25519.Signing.PrivateKey(rawRepresentation: privateKeyData)
+        try secureStorage.savePrivateKey(privateKey)
+        self.walletAddress = Self.deriveAddress(from: privateKey.publicKey)
+        self.privateKey = privateKey as? SecKey
     }
-    */
 
     @MainActor
     func fetchBalance() async throws {
         guard !walletAddress.isEmpty else { throw BlockchainClientError.walletNotLoaded }
-        // TODO: Replace with actual blockchain balance query using a real SDK.
         let params = [walletAddress]
-        let request = JSONRPCRequest(method: "chain_getBalance", params: params)
+        let request = JSONRPCRequest(method: "system_accountNextIndex", params: params)
         let result: Double = try await sendRPC(request: request)
         self.balance = result
     }
@@ -103,7 +98,6 @@ class RealBlockchainClient: BlockchainClientProtocol {
     @MainActor
     func fetchTransactionHistory() async throws {
         guard !walletAddress.isEmpty else { throw BlockchainClientError.walletNotLoaded }
-        // TODO: Replace with actual blockchain transaction history query using a real SDK.
         let params = [walletAddress]
         let request = JSONRPCRequest(method: "chain_getTransactions", params: params)
         let result: [[String: Any]] = try await sendRPC(request: request)
@@ -122,37 +116,31 @@ class RealBlockchainClient: BlockchainClientProtocol {
 
     @MainActor
     func signTransaction(from: String, to: String, amount: Double, data: String?) async throws -> String {
-        // TODO: Implement actual transaction signing using the private key and a blockchain SDK.
-        // This should construct a proper blockchain transaction object and sign it.
+        guard let privateKey = self.privateKey as? Curve25519.Signing.PrivateKey else {
+            throw BlockchainClientError.walletNotLoaded
+        }
         let transactionDetails = "\(from)\(to)\(amount)\(data ?? "")"
         guard let dataToSign = transactionDetails.data(using: .utf8) else {
             throw BlockchainClientError.transactionFailed("Failed to encode transaction data for signing.")
         }
-
-        guard let signature = secureStorage.sign(data: dataToSign) else {
-            throw BlockchainClientError.transactionFailed("Failed to sign transaction.")
-        }
-        // For now, return a base64 encoded signature. In a real scenario, this would be part of a signed transaction object.
+        let signature = try privateKey.signature(for: dataToSign)
         return signature.base64EncodedString()
     }
 
     @MainActor
     func broadcastTransaction(signedTransaction: String) async throws -> String {
-        // TODO: Implement actual transaction broadcasting to the blockchain network.
         let params = [signedTransaction]
-        let request = JSONRPCRequest(method: "chain_broadcastTransaction", params: params)
+        let request = JSONRPCRequest(method: "author_submitExtrinsic", params: params)
         let result: String = try await sendRPC(request: request)
-        return result // tx hash
+        return result
     }
 
     @MainActor
     func registerSampleMetadata(title: String, artist: String, p2pContentId: String, blockchainHash: String) async throws -> String {
-        // TODO: Implement actual smart contract interaction to register sample metadata on-chain.
-        guard let privateKey = privateKey else { throw BlockchainClientError.walletNotLoaded }
-        let params = [walletAddress, title, artist, p2pContentId, blockchainHash]
-        let request = JSONRPCRequest(method: "chain_registerSample", params: params)
+        let params = [title, artist, p2pContentId, blockchainHash]
+        let request = JSONRPCRequest(method: "custom_registerSample", params: params)
         let result: String = try await sendRPC(request: request)
-        return result // registration tx hash
+        return result
     }
 
     // MARK: - JSON-RPC Networking

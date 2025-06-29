@@ -26,7 +26,7 @@ class SecureStorage {
         
         var error: Unmanaged<CFError>?
         guard let privateKey = SecKeyCreateRandomKey(attributes as CFDictionary, &error) else {
-            print("Error generating key: \(error?.takeRetainedValue().localizedDescription ?? "Unknown error")")
+            print("SecureStorage.generateKeyPair Error: \(error?.takeRetainedValue().localizedDescription ?? "Unknown error")")
             // TODO: Log detailed error for debugging.
             return nil
         }
@@ -46,8 +46,8 @@ class SecureStorage {
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
         guard status == errSecSuccess else {
-            print("Error retrieving key: \(SecCopyErrorMessageString(status, nil) as String? ?? "Unknown error")")
-            // TODO: Handle specific error codes (e.g., errSecItemNotFound).
+            print("SecureStorage.getPrivateKey Error: \(SecCopyErrorMessageString(status, nil) as String? ?? "Unknown error")")
+            // TODO: Handle specific error codes (e.g., errSecItemNotFound) for more granular error handling.
             return nil
         }
         return (item as! SecKey)

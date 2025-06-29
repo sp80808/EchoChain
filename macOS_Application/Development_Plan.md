@@ -6,7 +6,7 @@ This document outlines the key development areas and tasks required to complete 
 
 ### 1.1 Wallet Management (`WalletView.swift`, `SecureStorage.swift`)
 - [ ] Implement secure wallet creation (new seed phrase generation).
-- [x] Implement wallet import (from seed phrase or private key).
+- [x] Implement wallet import (from seed phrase or private key). (Updated `fetchBalance` and `fetchTransactionHistory` with more accurate Substrate RPC method and TODOs for SCALE decoding)
 - [ ] Display current ECHO token balance and transaction history.
 - [x] Integrate with `BlockchainClient.swift` for on-chain balance queries. (Completed: Updated `fetchBalance` with more accurate Substrate RPC method and TODOs for SCALE decoding)
 - [x] Implement send/receive ECHO token functionality. (In Progress: `sendTransaction` method updated with detailed Substrate extrinsic TODOs)
@@ -17,7 +17,7 @@ This document outlines the key development areas and tasks required to complete 
 - [ ] Integrate search and filtering capabilities (genre, BPM, key, etc.).
 - [x] Implement audio playback functionality for samples. (Refined TODO for streaming large files)
 - [ ] Display detailed sample metadata (creator, description, price, license).
-- [ ] Implement sample purchase flow, interacting with `BlockchainClient.swift`.
+- [ ] Implement sample purchase flow, interacting with `BlockchainClient.swift`. (In Progress)
 
 ### 1.3 Sample Uploading (`SampleUploadView.swift`)
 - [x] Implement UI for selecting and uploading audio files.

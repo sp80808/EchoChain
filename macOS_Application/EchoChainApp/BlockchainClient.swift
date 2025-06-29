@@ -156,10 +156,26 @@ class RealBlockchainClient: BlockchainClientProtocol {
     @MainActor
     func fetchTransactionHistory() async throws {
         guard !walletAddress.isEmpty else { throw BlockchainClientError.walletNotLoaded }
+
+        // Fetching comprehensive transaction history directly from a Substrate node's RPC
+        // is complex and often inefficient for historical data. It typically involves:
+        // 1. Querying blocks for `system.ExtrinsicSuccess` or `balances.Transfer` events.
+        // 2. Decoding the event data to extract sender, recipient, amount, etc.
+        // 3. Iterating through a range of blocks, which can be very slow for a full history.
+
+        // For a production application, it's highly recommended to use an off-chain indexer
+        // (e.g., Subsquid, SubQuery, or a custom solution) that processes chain data
+        // and provides an easily queryable API for transaction history.
+
+        // Placeholder for a more realistic RPC call for recent transactions (if available).
+        // The `chain_getTransactions` method is a placeholder and might not exist on a real node.
         let params = [walletAddress]
-        let request = JSONRPCRequest(method: "chain_getTransactions", params: params)
+        let request = JSONRPCRequest(method: "chain_getRecentTransactions", params: params) // Placeholder RPC method
         let result: [[String: Any]] = try await sendRPC(request: request)
+
         self.transactionHistory = result.compactMap { dict in
+            // TODO: Parse actual transaction data from the RPC response.
+            // This will depend on the structure returned by the chosen RPC method or indexer.
             guard let idStr = dict["id"] as? String,
                   let id = UUID(uuidString: idStr),
                   let typeStr = dict["type"] as? String,
@@ -170,6 +186,7 @@ class RealBlockchainClient: BlockchainClientProtocol {
                   let dateInt = dict["date"] as? TimeInterval else { return nil }
             return Transaction(id: id, type: type, amount: amount, from: from, to: to, date: Date(timeIntervalSince1970: dateInt))
         }
+        print("Fetched \(self.transactionHistory.count) transactions for \(walletAddress) (Dummy)")
     }
 
     @MainActor

@@ -285,3 +285,52 @@ export const getProposalsFromBlockchain = async (): Promise<any[]> => {
   console.log("[Blockchain Placeholder] Simulated proposals:", simulatedProposals);
   return simulatedProposals;
 };
+
+export const getFeaturedSamplesFromBlockchain = async (): Promise<any[]> => {
+  console.log("[Blockchain Placeholder] Fetching featured samples from blockchain...");
+
+  // Simulate a blockchain query delay
+  await new Promise(resolve => setTimeout(resolve, 400));
+
+  const simulatedFeaturedSamples = [
+    {
+      _id: 'feat1',
+      title: 'Epic Drum Loop',
+      description: 'A powerful and driving drum loop.',
+      category: 'Drums',
+      tags: ['loop', 'drum', 'hiphop'],
+      bpm: 90,
+      key: 'Cmin',
+      creator: { email: 'featured1@example.com', walletAddress: 'ECHO_FEAT1' },
+      ipfsCid: 'QmFeaturedIpfsCid1',
+      status: 'approved',
+    },
+    {
+      _id: 'feat2',
+      title: 'Ambient Synth Pad',
+      description: 'A lush and evolving synth pad for atmospheric tracks.',
+      category: 'Synths',
+      tags: ['pad', 'ambient', 'synth'],
+      bpm: 120,
+      key: 'Gmaj',
+      creator: { email: 'featured2@example.com', walletAddress: 'ECHO_FEAT2' },
+      ipfsCid: 'QmFeaturedIpfsCid2',
+      status: 'approved',
+    },
+    {
+      _id: 'feat3',
+      title: 'Vocal Chop FX',
+      description: 'Processed vocal chops for modern electronic music.',
+      category: 'FX',
+      tags: ['vocal', 'chop', 'fx', 'trap'],
+      bpm: 140,
+      key: 'F#min',
+      creator: { email: 'featured3@example.com', walletAddress: 'ECHO_FEAT3' },
+      ipfsCid: 'QmFeaturedIpfsCid3',
+      status: 'approved',
+    },
+  ];
+
+  console.log("[Blockchain Placeholder] Simulated featured samples:", simulatedFeaturedSamples);
+  return simulatedFeaturedSamples;
+};

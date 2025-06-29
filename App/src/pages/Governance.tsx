@@ -20,24 +20,24 @@ const Governance: React.FC = () => {
   const [newProposalDescription, setNewProposalDescription] = useState('');
   const [submittingProposal, setSubmittingProposal] = useState(false);
 
-  useEffect(() => {
-    const fetchProposals = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const response = await fetch('http://localhost:3001/api/samples/governance/proposals');
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data: Proposal[] = await response.json();
-        setProposals(data);
-      } catch (e: any) {
-        setError(e.message);
-      } finally {
-        setLoading(false);
+  const fetchProposals = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('http://localhost:3001/api/samples/governance/proposals');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    };
+      const data: Proposal[] = await response.json();
+      setProposals(data);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchProposals();
   }, []);
 
@@ -65,8 +65,7 @@ const Governance: React.FC = () => {
       alert('Proposal submitted successfully!');
       setNewProposalTitle('');
       setNewProposalDescription('');
-      // Refresh proposals
-      // fetchProposals(); // Would re-fetch from backend
+      fetchProposals(); // Refresh proposals
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -93,8 +92,7 @@ const Governance: React.FC = () => {
       }
 
       alert(`Vote ${vote} cast successfully for proposal ${proposalId}!`);
-      // Refresh proposals
-      // fetchProposals(); // Would re-fetch from backend
+      fetchProposals(); // Refresh proposals
     } catch (err: any) {
       setError(err.message);
     }

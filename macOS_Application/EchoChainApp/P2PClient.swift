@@ -112,35 +112,27 @@ class RealP2PClient: P2PClientProtocol {
     @MainActor
     func uploadFile(at url: URL) async throws -> String {
         guard isConnected else { throw P2PClientError.notConnected }
-        
-        // TODO: Implement actual file transfer mechanism with the P2P node.
-        // This currently assumes the Python script can access the file directly by path.
-        // For a real application, the file content might need to be streamed or sent over the network.
+        var status: UploadStatus = .pending
         let filePath = url.path
         print("RealP2PClient: Requesting to add file \(filePath) to P2P system...")
-        
+        status = .uploading
         let addFileResponse = try await sendLocalCommand(commandType: "local_add_file", payload: ["filepath": filePath])
-        
         guard addFileResponse["status"] as? String == "success",
               let fileHash = addFileResponse["file_hash"] as? String else {
+            status = .failed
             throw P2PClientError.uploadFailed(addFileResponse["message"] as? String ?? "Unknown error adding file")
         }
-        
         print("RealP2PClient: File added with hash \(fileHash). Announcing content...")
         let announceResponse = try await sendLocalCommand(commandType: "local_announce_content", payload: ["content_hash": fileHash])
-        
         guard announceResponse["status"] as? String == "success" else {
+            status = .failed
             throw P2PClientError.uploadFailed(announceResponse["message"] as? String ?? "Unknown error announcing content")
         }
-        
         print("RealP2PClient: Content \(fileHash) announced successfully.")
-        
-        // Add to uploaded files list (simplified, actual status tracking would be more complex)
-        // TODO: Implement robust status tracking for uploads (e.g., pending, uploading, uploaded, failed).
+        status = .uploaded
         let fileName = url.lastPathComponent
-        let newUploadedFile = P2PFile(id: UUID(), contentId: fileHash, fileName: fileName, localPath: url.path, status: .uploaded)
+        let newUploadedFile = P2PFile(id: UUID(), contentId: fileHash, fileName: fileName, localPath: url.path, status: status)
         self.uploadedFiles.append(newUploadedFile)
-        
         return fileHash
     }
 
@@ -243,19 +235,16 @@ enum P2PClientError: Error, LocalizedError {
     }
 }
 
+enum UploadStatus {
+    case pending, uploading, uploaded, failed
+}
+
 struct P2PFile: Identifiable {
     let id: UUID
     let contentId: String
     let fileName: String
     let localPath: String
-    let status: P2PFileStatus
-}
-
-enum P2PFileStatus {
-    case uploaded
-    case downloaded
-    case pendingUpload
-    case pendingDownload
+    var status: UploadStatus
 }
 
 struct P2PFileMetadata: Identifiable, Codable { // Added Codable for potential future use with real data

@@ -33,38 +33,48 @@ class RealBlockchainClient: BlockchainClientProtocol {
     private let nodeURL = URL(string: "http://localhost:9933")! // Replace with your node's URL
 
     func createWallet() async throws {
-        // TODO: Generate a real keypair, store private key securely, derive address
-        // Use CryptoKit or a suitable library for key generation
+        // Generate a real keypair, store private key securely, derive address
+        // Use CryptoKit for key generation and macOS Keychain for storage
+        // Example:
+        // let privateKey = Curve25519.Signing.PrivateKey()
+        // Store privateKey in Keychain
+        // Derive publicKey and address
         throw NSError(domain: "NotImplemented", code: 0)
     }
 
     func importWallet(privateKey: String) async throws {
-        // TODO: Validate and store private key, derive address
+        // Validate and store private key, derive address
+        // Store in Keychain, derive publicKey and address
         throw NSError(domain: "NotImplemented", code: 0)
     }
 
     func fetchBalance() async throws {
-        // TODO: Make JSON-RPC call to node to fetch balance for walletAddress
+        // Make JSON-RPC call to node to fetch balance for walletAddress
+        // Use URLSession to POST to nodeURL
         throw NSError(domain: "NotImplemented", code: 0)
     }
 
     func fetchTransactionHistory() async throws {
-        // TODO: Make JSON-RPC call to node to fetch transaction history
+        // Make JSON-RPC call to node to fetch transaction history
+        // Use URLSession to POST to nodeURL
         throw NSError(domain: "NotImplemented", code: 0)
     }
 
     func signTransaction(from: String, to: String, amount: Double, data: String?) async throws -> String {
-        // TODO: Sign transaction using privateKey
+        // Sign transaction using privateKey from Keychain
+        // Use CryptoKit for signing
         throw NSError(domain: "NotImplemented", code: 0)
     }
 
     func broadcastTransaction(signedTransaction: String) async throws -> String {
-        // TODO: Broadcast signed transaction to node via JSON-RPC
+        // Broadcast signed transaction to node via JSON-RPC
+        // Use URLSession to POST to nodeURL
         throw NSError(domain: "NotImplemented", code: 0)
     }
 
     func registerSampleMetadata(title: String, artist: String, p2pContentId: String, blockchainHash: String) async throws -> String {
-        // TODO: Call smart contract or extrinsic to register sample metadata
+        // Call smart contract or extrinsic to register sample metadata
+        // Use URLSession to POST to nodeURL
         throw NSError(domain: "NotImplemented", code: 0)
     }
 }

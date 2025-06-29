@@ -14,6 +14,7 @@ protocol BlockchainClientProtocol: ObservableObject {
     func signTransaction(from: String, to: String, amount: Double, data: String?) async throws -> String
     func broadcastTransaction(signedTransaction: String) async throws -> String
     func registerSampleMetadata(title: String, artist: String, p2pContentId: String, blockchainHash: String) async throws -> String
+    func checkNodeConnection() async throws -> (chain: String, version: String)
 }
 
 // MARK: - Production Blockchain Client
@@ -23,7 +24,7 @@ class RealBlockchainClient: BlockchainClientProtocol {
     @Published var walletAddress: String = ""
     @Published var transactionHistory: [Transaction] = []
 
-    private let nodeURL = URL(string: "http://localhost:9933")! // Update to your node's URL
+    private let nodeURL = URL(string: "http://localhost:9933")! // Substrate RPC HTTP port
     private let secureStorage = SecureStorage()
 
     private var privateKey: SecKey? // TODO: This should be managed more robustly, potentially not stored directly.
@@ -37,7 +38,33 @@ class RealBlockchainClient: BlockchainClientProtocol {
                 await self.fetchBalance() // TODO: Implement actual balance fetching from blockchain
                 await self.fetchTransactionHistory() // TODO: Implement actual transaction history fetching
             }
+        } else {
+            // No wallet found, prompt user to create or import
+            // This could be a notification, delegate callback, or UI event
+            print("No wallet found. Please create or import a wallet.")
+            // Example: NotificationCenter.default.post(name: .walletNotFound, object: nil)
         }
+        Task {
+            do {
+                let (chain, version) = try await checkNodeConnection()
+                print("Connected to EchoChain node: Chain=\(chain), Version=\(version)")
+            } catch {
+                print("Failed to connect to EchoChain node: \(error.localizedDescription)")
+                // TODO: Handle node connection failure gracefully (e.g., show error to user).
+            }
+        }
+    }
+
+    @MainActor
+    func checkNodeConnection() async throws -> (chain: String, version: String) {
+        // TODO: This is a basic check. Consider using a dedicated Substrate API client for more robust checks.
+        let chainRequest = JSONRPCRequest(method: "system_chain", params: [])
+        let chainName: String = try await sendRPC(request: chainRequest)
+
+        let versionRequest = JSONRPCRequest(method: "system_version", params: [])
+        let nodeVersion: String = try await sendRPC(request: versionRequest)
+
+        return (chainName, nodeVersion)
     }
 
     @MainActor

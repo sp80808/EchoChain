@@ -9,7 +9,7 @@ This document outlines the key development areas and tasks required to complete 
 - [x] Implement wallet import (from seed phrase or private key).
 - [ ] Display current ECHO token balance and transaction history.
 - [x] Integrate with `BlockchainClient.swift` for on-chain balance queries. (Completed: Updated `fetchBalance` with more accurate Substrate RPC method and TODOs for SCALE decoding)
-- [ ] Implement send/receive ECHO token functionality.
+- [x] Implement send/receive ECHO token functionality. (In Progress: `sendTransaction` method updated with detailed Substrate extrinsic TODOs)
 - [x] Enhance `SecureStorage.swift` for robust key management (e.g., using Keychain services).
 
 ### 1.2 Sample Browsing (`SampleBrowserView.swift`)

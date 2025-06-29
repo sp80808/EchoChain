@@ -15,17 +15,31 @@ protocol BlockchainClientProtocol: ObservableObject {
     func signTransaction(from: String, to: String, amount: Double, data: String?) async throws -> String
     func broadcastTransaction(signedTransaction: String) async throws -> String
     @MainActor
-    func sendTransaction(to: String, amount: Double) async throws -> String {
-        guard let fromAddress = self.walletAddress else {
+    func sendTransaction(to recipientAddress: String, amount: Double) async throws -> String {
+        guard let currentWalletAddress = self.walletAddress, !currentWalletAddress.isEmpty else {
             throw BlockchainClientError.walletNotLoaded
         }
+        guard let privateKey = self.privateKey else {
+            throw BlockchainClientError.walletNotLoaded
+        }
+
         // TODO: Construct a proper extrinsic (transaction) for the Substrate chain.
-        // This will involve encoding the call (e.g., `Balances.transfer`) and its parameters.
-        // For now, we'll use a placeholder `data` for signing.
-        let transactionData = "transfer_\(amount)_to_\(to)"
-        
-        let signedTransaction = try await signTransaction(from: fromAddress, to: to, amount: amount, data: transactionData)
-        let txHash = try await broadcastTransaction(signedTransaction: signedTransaction)
+        // This is a complex step that typically requires a Substrate-specific encoding library
+        // or a deep understanding of SCALE encoding and the runtime's metadata.
+        // The extrinsic will include:
+        // 1. The `call` (e.g., `Balances.transfer` with recipient and amount).
+        // 2. The `signed extensions` (e.g., `Era`, `Nonce`, `Tip`, `AssetId`).
+        // 3. The `signature` generated using the private key.
+
+        // Placeholder for raw extrinsic bytes. In a real scenario, these would be generated
+        // by encoding the call and signed extensions according to SCALE.
+        let dummyExtrinsicData = "dummy_extrinsic_for_transfer_\(amount)_to_\(recipientAddress)".data(using: .utf8)!
+
+        // Sign the dummy extrinsic data
+        let signedExtrinsic = try await signTransaction(from: currentWalletAddress, to: recipientAddress, amount: amount, data: dummyExtrinsicData.base64EncodedString())
+
+        // Broadcast the signed extrinsic
+        let txHash = try await broadcastTransaction(signedTransaction: signedExtrinsic)
         return txHash
     }
     func registerSampleMetadata(title: String, artist: String, p2pContentId: String, blockchainHash: String) async throws -> String

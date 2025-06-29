@@ -11,6 +11,8 @@ struct WalletView: View {
     @State private var showingSendView = false
     @State private var sendAmount: String = ""
     @State private var sendAddress: String = ""
+    @StateObject private var p2pClient = RealP2PClient()
+    @State private var isBlockchainActionLoading = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -206,6 +208,8 @@ struct WalletView: View {
 
             Button(action: {
                 Task {
+                    isBlockchainActionLoading = true
+                    defer { isBlockchainActionLoading = false }
                     do {
                         let result = try await blockchainClient.claimRewards()
                         errorMessage = "Rewards claimed! Tx Hash: \(result)"
@@ -227,8 +231,12 @@ struct WalletView: View {
 
             Button(action: {
                 Task {
+                    isBlockchainActionLoading = true
+                    defer { isBlockchainActionLoading = false }
                     do {
-                        let result = try await blockchainClient.submitNetworkContribution(uploaded: 1000, downloaded: 2000)
+                        let uploaded = UInt64(p2pClient.uploadedFiles.count)
+                        let downloaded = UInt64(p2pClient.downloadedFiles.count)
+                        let result = try await blockchainClient.submitNetworkContribution(uploaded: uploaded, downloaded: downloaded)
                         errorMessage = "Network contribution submitted! Tx Hash: \(result)"
                         showingErrorAlert = true
                     } catch {
@@ -244,6 +252,11 @@ struct WalletView: View {
                     .background(Color.purple)
                     .foregroundColor(.white)
                     .cornerRadius(10)
+            }
+
+            if isBlockchainActionLoading {
+                ProgressView("Processing blockchain action...")
+                    .padding()
             }
 
             Divider()
@@ -298,3 +311,5 @@ struct WalletView: View {
                 }
             }
         }
+    }
+}

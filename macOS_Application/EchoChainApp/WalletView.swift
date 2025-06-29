@@ -2,7 +2,7 @@ import SwiftUI
 
 struct WalletView: View {
     @StateObject private var blockchainClient = RealBlockchainClient()
-    @StateObject private var secureStorage = SecureStorage()
+    @StateObject private var secureStorage = SecureStorage() // TODO: SecureStorage needs to be fully implemented for secure key management.
     @State private var walletAddress: String = "Loading..."
     @State private var showingImportAlert = false
     @State private var importPrivateKeyInput: String = ""
@@ -23,6 +23,7 @@ struct WalletView: View {
                 Text("Balance:")
                     .font(.title2)
                 Spacer()
+                // TODO: Ensure balance is fetched and displayed in real-time from the blockchain.
                 Text("\(blockchainClient.balance, specifier: "%.4f") ECHO")
                     .font(.title2)
                     .foregroundColor(.green)
@@ -33,6 +34,7 @@ struct WalletView: View {
                 Text("Address:")
                     .font(.title2)
                 Spacer()
+                // TODO: Display the actual wallet address derived from the blockchain client.
                 Text(walletAddress)
                     .font(.title3)
                     .lineLimit(1)
@@ -50,6 +52,7 @@ struct WalletView: View {
             Button(action: {
                 Task {
                     do {
+                        // TODO: Implement actual wallet creation on the blockchain and secure storage.
                         try await blockchainClient.createWallet()
                         walletAddress = blockchainClient.walletAddress
                     } catch {
@@ -68,6 +71,7 @@ struct WalletView: View {
             }
 
             /*
+            // TODO: Re-enable and implement robust wallet import functionality, considering security best practices.
             Button(action: {
                 showingImportAlert = true
             }) {
@@ -104,6 +108,7 @@ struct WalletView: View {
             Button(action: {
                 Task {
                     do {
+                        // TODO: Ensure this fetches the latest balance from the blockchain.
                         try await blockchainClient.fetchBalance()
                     } catch {
                         errorMessage = error.localizedDescription
@@ -173,10 +178,12 @@ struct WalletView: View {
                                         return
                                     }
                                     
+                                    // TODO: Implement actual transaction sending via blockchainClient.
+                                    // This will involve signing the transaction with the secureStorage and broadcasting it.
                                     try await blockchainClient.sendTransaction(
                                         to: sendAddress,
                                         amount: amount,
-                                        signer: secureStorage
+                                        signer: secureStorage // TODO: Ensure secureStorage provides a proper signer interface.
                                     )
                                     showingSendView = false
                                     sendAmount = ""
@@ -208,6 +215,7 @@ struct WalletView: View {
                 .font(.title)
                 .padding(.top, 20)
 
+            // TODO: Ensure transaction history is fetched and displayed accurately from the blockchain.
             List(blockchainClient.transactionHistory) { transaction in
                 VStack(alignment: .leading) {
                     Text("Type: \(transaction.type.rawValue.capitalized)")
@@ -231,6 +239,7 @@ struct WalletView: View {
         .navigationTitle("Wallet")
         .onAppear {
             Task {
+                // TODO: Handle initial wallet loading (create new or import) more gracefully.
                 walletAddress = blockchainClient.walletAddress
                 do {
                     try await blockchainClient.fetchBalance()

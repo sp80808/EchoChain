@@ -26,19 +26,23 @@ class RealBlockchainClient: BlockchainClientProtocol {
     private let nodeURL = URL(string: "http://localhost:9933")! // Update to your node's URL
     private let secureStorage = SecureStorage()
 
+    private var privateKey: SecKey? // TODO: This should be managed more robustly, potentially not stored directly.
+
     init() {
+        // TODO: Implement proper initialization, potentially loading an existing wallet or prompting for creation.
         // Attempt to load private key from Secure Enclave
         if let publicKey = secureStorage.getPublicKey() {
             self.walletAddress = Self.deriveAddress(from: publicKey)
             Task {
-                await self.fetchBalance()
-                await self.fetchTransactionHistory()
+                await self.fetchBalance() // TODO: Implement actual balance fetching from blockchain
+                await self.fetchTransactionHistory() // TODO: Implement actual transaction history fetching
             }
         }
     }
 
     @MainActor
     func createWallet() async throws {
+        // TODO: Implement actual wallet creation on the blockchain (e.g., generate a new key pair and register it).
         guard let privateKey = secureStorage.generateKeyPair() else {
             throw BlockchainClientError.keyStorageFailed
         }
@@ -62,6 +66,7 @@ class RealBlockchainClient: BlockchainClientProtocol {
     @MainActor
     func fetchBalance() async throws {
         guard !walletAddress.isEmpty else { throw BlockchainClientError.walletNotLoaded }
+        // TODO: Replace with actual blockchain balance query using a real SDK.
         let params = [walletAddress]
         let request = JSONRPCRequest(method: "chain_getBalance", params: params)
         let result: Double = try await sendRPC(request: request)
@@ -71,6 +76,7 @@ class RealBlockchainClient: BlockchainClientProtocol {
     @MainActor
     func fetchTransactionHistory() async throws {
         guard !walletAddress.isEmpty else { throw BlockchainClientError.walletNotLoaded }
+        // TODO: Replace with actual blockchain transaction history query using a real SDK.
         let params = [walletAddress]
         let request = JSONRPCRequest(method: "chain_getTransactions", params: params)
         let result: [[String: Any]] = try await sendRPC(request: request)
@@ -89,7 +95,8 @@ class RealBlockchainClient: BlockchainClientProtocol {
 
     @MainActor
     func signTransaction(from: String, to: String, amount: Double, data: String?) async throws -> String {
-        // Construct the data to be signed (e.g., a hash of the transaction details)
+        // TODO: Implement actual transaction signing using the private key and a blockchain SDK.
+        // This should construct a proper blockchain transaction object and sign it.
         let transactionDetails = "\(from)\(to)\(amount)\(data ?? "")"
         guard let dataToSign = transactionDetails.data(using: .utf8) else {
             throw BlockchainClientError.transactionFailed("Failed to encode transaction data for signing.")
@@ -104,6 +111,7 @@ class RealBlockchainClient: BlockchainClientProtocol {
 
     @MainActor
     func broadcastTransaction(signedTransaction: String) async throws -> String {
+        // TODO: Implement actual transaction broadcasting to the blockchain network.
         let params = [signedTransaction]
         let request = JSONRPCRequest(method: "chain_broadcastTransaction", params: params)
         let result: String = try await sendRPC(request: request)
@@ -112,6 +120,7 @@ class RealBlockchainClient: BlockchainClientProtocol {
 
     @MainActor
     func registerSampleMetadata(title: String, artist: String, p2pContentId: String, blockchainHash: String) async throws -> String {
+        // TODO: Implement actual smart contract interaction to register sample metadata on-chain.
         guard let privateKey = privateKey else { throw BlockchainClientError.walletNotLoaded }
         let params = [walletAddress, title, artist, p2pContentId, blockchainHash]
         let request = JSONRPCRequest(method: "chain_registerSample", params: params)
@@ -140,6 +149,7 @@ class RealBlockchainClient: BlockchainClientProtocol {
     }
 
     private func sendRPC<T: Decodable>(request: JSONRPCRequest) async throws -> T {
+        // TODO: This RPC client is a placeholder. Replace with a robust blockchain SDK's RPC client.
         var urlRequest = URLRequest(url: nodeURL)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")

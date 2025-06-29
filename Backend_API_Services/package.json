@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint . --ext .js,.ts --config .eslintrc.json",
+    "format": "prettier --write \"src/**/*.{js,ts,json,md}\" --config .prettierrc",
+    "test": "jest --config jest.config.js",
     "start": "ts-node-dev --respawn --transpile-only src/index.ts"
   },
   "keywords": [],

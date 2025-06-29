@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "eslint .",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx --config .eslintrc.json",
+    "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,json,css,md}\" --config .prettierrc",
+    "test": "jest --config jest.config.js",
+    "cypress:open": "cypress open --config-file cypress.config.js",
+    "cypress:run": "cypress run --config-file cypress.config.js",
     "preview": "vite preview"
   },
   "dependencies": {

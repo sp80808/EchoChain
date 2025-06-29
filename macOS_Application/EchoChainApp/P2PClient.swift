@@ -35,6 +35,8 @@ class RealP2PClient: P2PClientProtocol {
     func connect() async throws {
         guard !isConnected else { return }
         
+        // TODO: Implement more robust connection handling, including retries and error reporting.
+        // Consider using a dedicated P2P library or a more sophisticated network layer.
         return try await withCheckedThrowingContinuation { continuation in
             let host = NWEndpoint.Host(nodeHost)
             let port = NWEndpoint.Port(rawValue: UInt16(localAPIPort))!
@@ -49,6 +51,7 @@ class RealP2PClient: P2PClientProtocol {
                 case .failed(let error):
                     print("RealP2PClient: Connection failed: \(error.localizedDescription)")
                     self.isConnected = false
+                    // TODO: Add more specific error handling and user feedback for connection failures.
                     continuation.resume(throwing: P2PClientError.connectionFailed(error.localizedDescription))
                 case .cancelled:
                     print("RealP2PClient: Connection cancelled.")
@@ -69,6 +72,7 @@ class RealP2PClient: P2PClientProtocol {
         connection?.cancel()
         isConnected = false
         print("RealP2PClient: Disconnected from local P2P node API.")
+        // TODO: Ensure all P2P resources are properly released upon disconnection.
     }
 
     private func sendLocalCommand(commandType: String, payload: [String: Any]) async throws -> [String: Any] {
@@ -76,6 +80,7 @@ class RealP2PClient: P2PClientProtocol {
             throw P2PClientError.notConnected
         }
 
+        // TODO: Improve error handling for JSON serialization/deserialization.
         return try await withCheckedThrowingContinuation { continuation in
             let message: [String: Any] = ["type": commandType, "payload": payload]
             guard let jsonData = try? JSONSerialization.data(withJSONObject: message) else {
@@ -108,8 +113,9 @@ class RealP2PClient: P2PClientProtocol {
     func uploadFile(at url: URL) async throws -> String {
         guard isConnected else { throw P2PClientError.notConnected }
         
-        // Ensure the file URL can be accessed by the Python script
-        // For local development, we might need to pass the absolute path
+        // TODO: Implement actual file transfer mechanism with the P2P node.
+        // This currently assumes the Python script can access the file directly by path.
+        // For a real application, the file content might need to be streamed or sent over the network.
         let filePath = url.path
         print("RealP2PClient: Requesting to add file \(filePath) to P2P system...")
         
@@ -130,6 +136,7 @@ class RealP2PClient: P2PClientProtocol {
         print("RealP2PClient: Content \(fileHash) announced successfully.")
         
         // Add to uploaded files list (simplified, actual status tracking would be more complex)
+        // TODO: Implement robust status tracking for uploads (e.g., pending, uploading, uploaded, failed).
         let fileName = url.lastPathComponent
         let newUploadedFile = P2PFile(id: UUID(), contentId: fileHash, fileName: fileName, localPath: url.path, status: .uploaded)
         self.uploadedFiles.append(newUploadedFile)
@@ -150,10 +157,8 @@ class RealP2PClient: P2PClientProtocol {
         
         print("RealP2PClient: Download initiated for \(contentId). Waiting for completion...")
         
-        // In a real scenario, the Python node would notify the client upon completion,
-        // or the client would poll for status. For now, we'll simulate waiting
-        // and then assume success and construct a dummy path.
-        // A more robust solution would involve the Python node returning the final path.
+        // TODO: Replace simulation with actual polling or callback mechanism from the Python node
+        // to confirm download completion and get the actual downloaded file path.
         try await Task.sleep(nanoseconds: 5_000_000_000) // Simulate download time
 
         // Construct the expected download path based on p2p_node.py's logic
@@ -193,7 +198,8 @@ class RealP2PClient: P2PClientProtocol {
                let filename = contentDict["filename"] as? String,
                let size = contentDict["size"] as? Int {
                 // Placeholder for title, artist, duration, blockchainHash
-                // In a real system, this metadata would come from the blockchain or a more detailed P2P metadata exchange
+                // TODO: Integrate with backend API or blockchain to fetch richer metadata for samples.
+                // The P2P node should ideally provide more than just content_id and filename.
                 let title = filename.replacingOccurrences(of: ".mp3", with: "").replacingOccurrences(of: ".txt", with: "")
                 let artist = "Unknown Artist"
                 let duration = "\(size / 1024)KB" // Simple size-based duration for now

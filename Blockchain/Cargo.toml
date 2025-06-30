@@ -19,7 +19,7 @@ pallet-timestamp = { default-features = false, git = "https://github.com/parityt
 
 # EchoChain custom pallets
 pallet-proof-of-contribution = { path = "./pallets/proof-of-contribution", default-features = false }
-pallet-sample-registry = { path = "./pallets/sample-registry", default-features = false }
+pallet-sample-registry = { path = "echochain-node/pallets/sample-registry", default-features = false }
 pallet-p2p-integration = { path = "./pallets/p2p-integration", default-features = false }
 pallet-governance = { path = "./pallets/governance", default-features = false }
 

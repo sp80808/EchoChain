@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  frontend:
+    name: Frontend (LandingPage/project)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: LandingPage/project
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format -- --check
+      - run: npm test
+
+  backend:
+    name: Backend (Backend_API_Services)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Backend_API_Services
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format -- --check
+      - run: npm test
+
+  python-microservice:
+    name: Python Microservice (Audio Analysis)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: P2P_File_Sharing_System/audio_analysis_service
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - run: python -m pip install --upgrade pip
+      - run: pip install black isort flake8
+      - run: black --check .
+      - run: isort --check .
+      - run: flake8 . 

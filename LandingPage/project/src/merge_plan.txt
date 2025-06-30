@@ -1,0 +1,26 @@
+Unique files to merge from App:
+
+components/
+- AppLayout.tsx
+- AudioVisualizer.tsx
+- HowItWorks.tsx
+- LoadingSpinner.tsx
+- TipModal.tsx
+components/Auth/
+- Login.tsx
+- Register.tsx
+
+pages/
+- LandingPage.tsx
+- Community.tsx
+- SampleBrowser.tsx
+- Governance.tsx
+- Profile.tsx
+- MyLibrary.tsx
+- Wallet.tsx
+- NotFound.tsx
+- SampleUpload.tsx
+- About.tsx
+- Settings.tsx
+
+These files do not exist in LandingPage/project/src or its components directory and should be merged/copied over. After merging, App can be safely removed. 

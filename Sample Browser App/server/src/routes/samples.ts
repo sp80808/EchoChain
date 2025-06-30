@@ -1,10 +1,10 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import auth from '../middleware/auth';
 import Sample from '../models/Sample';
 import { uploadToIpfs } from '../utils/ipfs';
 import { checkOriginality } from '../utils/audioFingerprinting';
-import { registerSampleOnBlockchain } from '../utils/blockchain';
+import { registerSampleOnBlockchain, getSampleMetadataFromBlockchain } from '../utils/blockchain';
 import { analyzeAudioFile } from '../utils/audioAnalysis';
 import { separateStems } from '../utils/stemSeparation';
 import fs from 'fs';
@@ -142,9 +142,9 @@ router.post('/', [auth, upload.single('sample')], async (req, res) => {
 });
 
 // Get all approved samples
-router.get('/', async (req, res) => {
+router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { category, tags, bpm, key, search } = req.query;
+    const { category, tags, bpm, key, type, search } = req.query;
     const query: any = { status: 'approved' };
 
     if (category) {
@@ -163,6 +163,17 @@ router.get('/', async (req, res) => {
       query.key = key;
     }
 
+    // New: Filter by type (one-shot, loop, fx) using tags
+    if (type) {
+      const typeTags = (type as string).split(',').map(t => t.trim().toLowerCase());
+      query.tags = query.tags || {};
+      if (query.tags.$in) {
+        query.tags.$in = [...query.tags.$in, ...typeTags];
+      } else {
+        query.tags.$in = typeTags;
+      }
+    }
+
     if (search) {
       query.$or = [
         { title: { $regex: search, $options: 'i' } },
@@ -171,10 +182,27 @@ router.get('/', async (req, res) => {
       ];
     }
 
-    const samples = await Sample.find(query).populate('creator', 'email walletAddress');
-    res.json(samples);
+    // Fetch samples from MongoDB based on query
+    const samplesFromDb = await Sample.find(query).populate('creator', 'email walletAddress');
+
+    // For approved samples, simulate fetching metadata from blockchain
+    const finalSamples = await Promise.all(samplesFromDb.map(async (sample) => {
+      if (sample.status === 'approved') {
+        const blockchainMetadata = await getSampleMetadataFromBlockchain((sample._id as any).toString());
+        if (blockchainMetadata) {
+          return { ...sample.toObject(), ...blockchainMetadata };
+        } else {
+          // If blockchain metadata not found, return original from DB
+          return sample.toObject();
+        }
+      } else {
+        return sample.toObject();
+      }
+    }));
+
+    res.json(finalSamples);
   } catch (err) {
-    console.error(err.message);
+    console.error((err as Error).message);
     res.status(500).send('Server error');
   }
 });
@@ -182,8 +210,25 @@ router.get('/', async (req, res) => {
 // Download Sample
 router.get('/my', auth, async (req, res) => {
   try {
-    const samples = await Sample.find({ creator: req.user.id }).populate('creator', 'email walletAddress');
-    res.json(samples);
+    // Fetch samples from MongoDB based on creator
+    const samplesFromDb = await Sample.find({ creator: req.user.id }).populate('creator', 'email walletAddress');
+
+    // For approved samples, simulate fetching metadata from blockchain
+    const finalSamples = await Promise.all(samplesFromDb.map(async (sample) => {
+      if (sample.status === 'approved') {
+        const blockchainMetadata = await getSampleMetadataFromBlockchain(sample._id.toString());
+        if (blockchainMetadata) {
+          return { ...sample.toObject(), ...blockchainMetadata };
+        } else {
+          // If blockchain metadata not found, return original from DB
+          return sample.toObject();
+        }
+      } else {
+        return sample.toObject();
+      }
+    }));
+
+    res.json(finalSamples);
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server error');
@@ -216,16 +261,208 @@ router.post('/contributions/network', auth, async (req, res) => {
   const { storageBytes, bandwidthBytes } = req.body;
 
   try {
-    // Placeholder for reporting network contribution to blockchain
-    // In a real scenario, this would call a specific blockchain extrinsic
-    // to record network contributions.
-    await registerSampleOnBlockchain(
-      'network_contribution',
-      `contribution_for_${req.user.id}_${new Date().toISOString()}`,
-      req.user.id,
-      { storageBytes, bandwidthBytes }
+    const reported = await reportNetworkContributionToBlockchain(
+      req.user.walletAddress,
+      storageBytes,
+      bandwidthBytes
     );
-    res.json({ msg: 'Network contribution reported successfully' });
+
+    if (reported) {
+      res.json({ msg: 'Network contribution reported successfully' });
+    } else {
+      res.status(500).json({ msg: 'Failed to report network contribution' });
+    }
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+// Admin route to approve a sample (simulated blockchain interaction)
+router.post('/:id/approve', auth, async (req, res) => {
+  try {
+    // In a real application, this route would be protected by an admin role
+    const sample = await Sample.findById(req.params.id);
+    if (!sample) {
+      return res.status(404).json({ msg: 'Sample not found' });
+    }
+
+    const approvedOnBlockchain = await approveSampleOnBlockchain(sample._id.toString());
+
+    if (approvedOnBlockchain) {
+      sample.status = 'approved';
+      await sample.save();
+      res.json({ msg: 'Sample approved successfully', sample });
+    } else {
+      res.status(500).json({ msg: 'Failed to approve sample on blockchain' });
+    }
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+// Tip a creator
+router.post('/:id/tip', auth, async (req, res) => {
+  const { amount } = req.body;
+
+  try {
+    const sample = await Sample.findById(req.params.id);
+    if (!sample) {
+      return res.status(404).json({ msg: 'Sample not found' });
+    }
+
+    // Placeholder for blockchain tipping transaction
+    // In a real scenario, this would involve a blockchain transaction
+    // to transfer tokens from the tipper to the creator.
+    const tipSuccessful = await transferTokensOnBlockchain(
+      req.user.walletAddress, // Assuming req.user has walletAddress from auth middleware
+      sample.creator.walletAddress, // Assuming sample.creator has walletAddress
+      amount
+    );
+
+    if (tipSuccessful) {
+      res.json({ msg: `Successfully tipped ${amount} ECHO to ${sample.creator.email}` });
+    } else {
+      res.status(500).json({ msg: 'Failed to process tip transaction' });
+    }
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+// Get blockchain statistics
+router.get('/stats', async (req, res) => {
+  try {
+    const stats = await getBlockchainStats();
+    res.json(stats);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+// Submit a new proposal
+router.post('/governance/proposals', auth, async (req, res) => {
+  const { title, description } = req.body;
+
+  try {
+    const submitted = await submitProposalToBlockchain(
+      req.user.walletAddress,
+      title,
+      description
+    );
+
+    if (submitted) {
+      res.json({ msg: 'Proposal submitted successfully' });
+    } else {
+      res.status(500).json({ msg: 'Failed to submit proposal' });
+    }
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+// Vote on a proposal
+router.post('/governance/proposals/:id/vote', auth, async (req, res) => {
+  const { vote } = req.body; // 'aye' or 'nay'
+
+  try {
+    const voted = await voteOnProposalOnBlockchain(
+      req.user.walletAddress,
+      req.params.id,
+      vote
+    );
+
+    if (voted) {
+      res.json({ msg: `Vote cast successfully for proposal ${req.params.id}` });
+    } else {
+      res.status(500).json({ msg: 'Failed to cast vote' });
+    }
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+// Trigger stem separation for an existing sample
+router.post('/:id/separate-stems', auth, async (req, res) => {
+  try {
+    const sample = await Sample.findById(req.params.id);
+    if (!sample) {
+      return res.status(404).json({ msg: 'Sample not found' });
+    }
+
+    // For now, we'll simulate the file path. In a real scenario, you'd need to retrieve the actual file.
+    // This would likely involve downloading from IPFS first.
+    const dummyFilePath = `/tmp/${sample._id}.wav`; // Placeholder
+    // Create a dummy file for the Python script to process
+    fs.writeFileSync(dummyFilePath, "dummy audio data");
+
+    const outputDir = path.join(__dirname, '..', '..', 'uploads', 'stems', sample._id.toString());
+    fs.mkdirSync(outputDir, { recursive: true });
+
+    const separationResult = await separateStems(dummyFilePath, outputDir);
+
+    if (separationResult.success) {
+      const stemFiles = fs.readdirSync(outputDir);
+      for (const stemFile of stemFiles) {
+        const stemFilePath = path.join(outputDir, stemFile);
+        const stemFileContent = fs.readFileSync(stemFilePath);
+        const stemIpfsCid = await uploadToIpfs(stemFileContent);
+
+        const stemMetadata = {
+          title: `${sample.title} - ${stemFile.replace('.wav', '')}`,
+          description: `Stem from ${sample.title}: ${stemFile.replace('.wav', '')}`,
+          category: sample.category,
+          tags: [...sample.tags, 'stem', stemFile.replace('.wav', '')],
+          bpm: sample.bpm,
+          key: sample.key,
+          creator: sample.creator,
+          fileIpfsCid: stemIpfsCid,
+          parentSampleId: sample._id, // Link to the original sample
+        };
+        const stemMetadataIpfsCid = await uploadToIpfs(JSON.stringify(stemMetadata));
+
+        // Register stem on blockchain (placeholder)
+        await registerSampleOnBlockchain(stemIpfsCid, stemMetadataIpfsCid, sample.creator.toString());
+
+        const newStemSample = new Sample({
+          title: stemMetadata.title,
+          description: stemMetadata.description,
+          category: stemMetadata.category,
+          tags: stemMetadata.tags,
+          bpm: stemMetadata.bpm,
+          key: stemMetadata.key,
+          creator: stemMetadata.creator,
+          ipfsCid: stemIpfsCid,
+          metadataIpfsCid: stemMetadataIpfsCid,
+          status: 'pending',
+        });
+        await newStemSample.save();
+      }
+      fs.rmSync(outputDir, { recursive: true, force: true }); // Clean up stem files
+      fs.unlinkSync(dummyFilePath); // Clean up dummy file
+      res.json({ msg: 'Stem separation initiated successfully' });
+    } else {
+      fs.unlinkSync(dummyFilePath); // Clean up dummy file
+      res.status(500).json({ msg: `Stem separation failed: ${separationResult.error}` });
+    }
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+export default router;
+
+// Get all proposals
+router.get('/governance/proposals', async (req, res) => {
+  try {
+    const proposals = await getProposalsFromBlockchain();
+    res.json(proposals);
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server error');

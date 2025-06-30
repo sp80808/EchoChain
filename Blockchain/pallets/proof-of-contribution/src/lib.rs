@@ -184,6 +184,25 @@ impl<T: Config> Module<T> {
         Ok(())
     }
 
+    /// Update reward parameters (called by governance pallet)
+    pub fn set_reward_parameters(
+        content_reward: u128,
+        storage_reward: u128,
+        bandwidth_reward: u128,
+        reward_interval: u32
+    ) -> DispatchResult {
+        // In a real implementation, we would update the pallet's configuration here
+        // For now we'll just validate the parameters
+        if content_reward == 0 || storage_reward == 0 || bandwidth_reward == 0 {
+            return Err(Error::<T>::RewardCalculationOverflow.into());
+        }
+        
+        // Update reward interval
+        <RewardInterval>::put(reward_interval);
+        
+        Ok(())
+    }
+
     /// Distribute rewards to all contributors based on their contributions
     fn distribute_rewards() -> DispatchResult {
         let reward_per_unit = T::ContributionReward::get();

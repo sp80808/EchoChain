@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint . --ext .js,.ts --config .eslintrc.json",
+    "format": "prettier --write \"src/**/*.{js,ts,json,md}\" --config .prettierrc",
+    "test": "jest --config jest.config.js",
     "start": "ts-node-dev --respawn --transpile-only src/index.ts"
   },
   "keywords": [],
@@ -26,7 +28,11 @@
     "dotenv": "^17.0.0",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
+    "sqlite3": "^5.1.7",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.8.3"
+  },
+  "devDependencies": {
+    "@types/sqlite3": "^3.1.11"
   }
 }

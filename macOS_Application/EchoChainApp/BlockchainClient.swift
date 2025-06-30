@@ -1,5 +1,7 @@
 import Foundation
 import Combine
+import Security
+import CryptoKit
 
 // Protocol to define the interface for blockchain interactions
 protocol BlockchainClientProtocol: ObservableObject {
@@ -8,121 +10,199 @@ protocol BlockchainClientProtocol: ObservableObject {
     var transactionHistory: [Transaction] { get }
 
     func createWallet() async throws
-    func importWallet(privateKey: String) async throws
     func fetchBalance() async throws
     func fetchTransactionHistory() async throws
     func signTransaction(from: String, to: String, amount: Double, data: String?) async throws -> String
     func broadcastTransaction(signedTransaction: String) async throws -> String
     func registerSampleMetadata(title: String, artist: String, p2pContentId: String, blockchainHash: String) async throws -> String
+    func checkNodeConnection() async throws -> (chain: String, version: String)
 }
 
-// Simulated Blockchain Client
-class SimulatedBlockchainClient: BlockchainClientProtocol {
+// MARK: - Production Blockchain Client
+
+class RealBlockchainClient: BlockchainClientProtocol {
     @Published var balance: Double = 0.0
-    @Published var walletAddress: String = "echoxxx...xxx"
+    @Published var walletAddress: String = ""
     @Published var transactionHistory: [Transaction] = []
 
+    private let nodeURL = URL(string: "http://localhost:9933")! // Substrate RPC HTTP port
     private let secureStorage = SecureStorage()
-    private var privateKey: String?
+
+    private var privateKey: Curve25519.Signing.PrivateKey? // TODO: This should be managed more robustly, potentially not stored directly. The SecureStorage should ideally return this type directly.
 
     init() {
-        // Attempt to load existing wallet on initialization
-        if let storedPrivateKey = secureStorage.retrievePrivateKey() {
-            self.privateKey = storedPrivateKey
-            self.walletAddress = "echo\(storedPrivateKey.prefix(10))...\(storedPrivateKey.suffix(10))"
+        // TODO: Implement proper initialization, potentially loading an existing wallet or prompting for creation.
+        // Attempt to load private key from Secure Enclave
+        if let publicKey = secureStorage.getPublicKey() {
+            self.walletAddress = Self.deriveAddress(from: publicKey)
             Task {
-                await self.fetchBalance()
-                await self.fetchTransactionHistory()
+                await self.fetchBalance() // TODO: Implement actual balance fetching from blockchain
+                await self.fetchTransactionHistory() // TODO: Implement actual transaction history fetching
             }
         } else {
-            print("No existing wallet found. Please create or import one.")
+            // No wallet found, prompt user to create or import
+            // This could be a notification, delegate callback, or UI event
+            print("No wallet found. Please create or import a wallet.")
+            // Example: NotificationCenter.default.post(name: .walletNotFound, object: nil)
         }
+        Task {
+            do {
+                let (chain, version) = try await checkNodeConnection()
+                print("Connected to EchoChain node: Chain=\(chain), Version=\(version)")
+            } catch {
+                print("Failed to connect to EchoChain node: \(error.localizedDescription)")
+                // TODO: Handle node connection failure gracefully (e.g., show error to user).
+            }
+        }
+    }
+
+    @MainActor
+    func checkNodeConnection() async throws -> (chain: String, version: String) {
+        // TODO: This is a basic check. Consider using a dedicated Substrate API client for more robust checks.
+        let chainRequest = JSONRPCRequest(method: "system_chain", params: [])
+        let chainName: String = try await sendRPC(request: chainRequest)
+
+        let versionRequest = JSONRPCRequest(method: "system_version", params: [])
+        let nodeVersion: String = try await sendRPC(request: versionRequest)
+
+        return (chainName, nodeVersion)
     }
 
     @MainActor
     func createWallet() async throws {
-        // In a real scenario, this would generate a new key pair and store the private key securely.
-        let newPrivateKey = UUID().uuidString // Placeholder for actual key generation
-        let newWalletAddress = "echo\(newPrivateKey.prefix(10))...\(newPrivateKey.suffix(10))"
-
-        if secureStorage.storePrivateKey(newPrivateKey) {
-            self.privateKey = newPrivateKey
-            self.walletAddress = newWalletAddress
-            self.balance = Double.random(in: 50.0...500.0)
-            self.transactionHistory.append(Transaction(id: UUID(), type: .creation, amount: self.balance, from: "System", to: newWalletAddress, date: Date()))
-            print("Simulated: New wallet created: \(walletAddress)")
-        } else {
-            throw BlockchainClientError.keyStorageFailed
-        }
+        // Generate a Curve25519 keypair and store private key in Keychain
+        let privateKey = Curve25519.Signing.PrivateKey()
+        let publicKey = privateKey.publicKey
+        try secureStorage.savePrivateKey(privateKey)
+        self.walletAddress = Self.deriveAddress(from: publicKey)
+        self.privateKey = privateKey as? SecKey
     }
 
-    @MainActor
-    func importWallet(privateKey: String) async throws {
-        // In a real scenario, this would validate the private key and derive the address.
-        let importedWalletAddress = "echo\(privateKey.prefix(10))...\(privateKey.suffix(10))"
-
-        if secureStorage.storePrivateKey(privateKey) {
-            self.privateKey = privateKey
-            self.walletAddress = importedWalletAddress
-            self.balance = Double.random(in: 10.0...1000.0)
-            self.transactionHistory.append(Transaction(id: UUID(), type: .import, amount: self.balance, from: "System", to: importedWalletAddress, date: Date()))
-            print("Simulated: Existing wallet imported: \(walletAddress)")
-        } else {
-            throw BlockchainClientError.keyStorageFailed
-        }
+    func importWallet(privateKeyData: Data) async throws {
+        // Import a Curve25519 private key from data and store in Keychain
+        let privateKey = try Curve25519.Signing.PrivateKey(rawRepresentation: privateKeyData)
+        try secureStorage.savePrivateKey(privateKey)
+        self.walletAddress = Self.deriveAddress(from: privateKey.publicKey)
+        self.privateKey = privateKey as? SecKey
     }
 
     @MainActor
     func fetchBalance() async throws {
-        // Simulate fetching balance from blockchain
-        try await Task.sleep(nanoseconds: 500_000_000) // Simulate network delay
-        self.balance = Double.random(in: 0.0...1000.0)
-        print("Simulated: Fetched new balance: \(balance) ECHO")
+        guard !walletAddress.isEmpty else { throw BlockchainClientError.walletNotLoaded }
+        // TODO: Implement actual balance fetching from the blockchain.
+        // This typically involves querying the `system.account` storage map.
+        // Example RPC method: `state_getStorage` with the account key.
+        // The current `chain_getBalance` is a placeholder and might not exist on a real node.
+        let params = [walletAddress]
+        let request = JSONRPCRequest(method: "chain_getBalance", params: params) // Placeholder RPC method
+        let result: Double = try await sendRPC(request: request)
+        self.balance = result
     }
 
     @MainActor
     func fetchTransactionHistory() async throws {
-        // Simulate fetching transaction history
-        try await Task.sleep(nanoseconds: 700_000_000) // Simulate network delay
-        self.transactionHistory = [
-            Transaction(id: UUID(), type: .sent, amount: 10.0, from: "echoxxx...xxx", to: "echoyyy...yyy", date: Date().addingTimeInterval(-3600)),
-            Transaction(id: UUID(), type: .received, amount: 5.0, from: "echozzz...zzz", to: "echoxxx...xxx", date: Date().addingTimeInterval(-7200)),
-            Transaction(id: UUID(), type: .sent, amount: 2.0, from: "echoxxx...xxx", to: "echoaaa...aaa", date: Date().addingTimeInterval(-10800))
-        ]
-        print("Simulated: Fetched transaction history.")
+        guard !walletAddress.isEmpty else { throw BlockchainClientError.walletNotLoaded }
+        let params = [walletAddress]
+        let request = JSONRPCRequest(method: "chain_getTransactions", params: params)
+        let result: [[String: Any]] = try await sendRPC(request: request)
+        self.transactionHistory = result.compactMap { dict in
+            guard let idStr = dict["id"] as? String,
+                  let id = UUID(uuidString: idStr),
+                  let typeStr = dict["type"] as? String,
+                  let type = TransactionType(rawValue: typeStr),
+                  let amount = dict["amount"] as? Double,
+                  let from = dict["from"] as? String,
+                  let to = dict["to"] as? String,
+                  let dateInt = dict["date"] as? TimeInterval else { return nil }
+            return Transaction(id: id, type: type, amount: amount, from: from, to: to, date: Date(timeIntervalSince1970: dateInt))
+        }
     }
 
     @MainActor
     func signTransaction(from: String, to: String, amount: Double, data: String?) async throws -> String {
-        guard privateKey != nil else {
+        guard let privateKey = self.privateKey as? Curve25519.Signing.PrivateKey else {
             throw BlockchainClientError.walletNotLoaded
         }
-        // Simulate transaction signing
-        try await Task.sleep(nanoseconds: 300_000_000)
-        let signedTx = "signed_tx_\(UUID().uuidString)"
-        print("Simulated: Transaction signed: \(signedTx)")
-        return signedTx
+        let transactionDetails = "\(from)\(to)\(amount)\(data ?? "")"
+        guard let dataToSign = transactionDetails.data(using: .utf8) else {
+            throw BlockchainClientError.transactionFailed("Failed to encode transaction data for signing.")
+        }
+        let signature = try privateKey.signature(for: dataToSign)
+        return signature.base64EncodedString()
     }
 
     @MainActor
     func broadcastTransaction(signedTransaction: String) async throws -> String {
-        // Simulate broadcasting transaction to the blockchain
-        try await Task.sleep(nanoseconds: 1_000_000_000)
-        let txHash = "tx_hash_\(UUID().uuidString)"
-        print("Simulated: Transaction broadcasted: \(txHash)")
-        return txHash
+        let params = [signedTransaction]
+        let request = JSONRPCRequest(method: "author_submitExtrinsic", params: params)
+        let result: String = try await sendRPC(request: request)
+        return result
     }
 
     @MainActor
     func registerSampleMetadata(title: String, artist: String, p2pContentId: String, blockchainHash: String) async throws -> String {
-        guard privateKey != nil else {
-            throw BlockchainClientError.walletNotLoaded
+        let params = [title, artist, p2pContentId, blockchainHash]
+        let request = JSONRPCRequest(method: "custom_registerSample", params: params)
+        let result: String = try await sendRPC(request: request)
+        return result
+    }
+
+    // MARK: - JSON-RPC Networking
+    struct JSONRPCRequest: Encodable {
+        let jsonrpc = "2.0"
+        let method: String
+        let params: [AnyEncodable]
+        let id = 1
+        init(method: String, params: [Any]) {
+            self.method = method
+            self.params = params.map { AnyEncodable($0) }
         }
-        // Simulate smart contract interaction for sample registration
-        try await Task.sleep(nanoseconds: 1_500_000_000)
-        let registrationTxHash = "sample_reg_tx_\(UUID().uuidString)"
-        print("Simulated: Sample metadata registered on blockchain. Tx Hash: \(registrationTxHash)")
-        return registrationTxHash
+    }
+
+    struct AnyEncodable: Encodable {
+        private let _encode: (Encoder) throws -> Void
+        init<T: Encodable>(_ wrapped: T) {
+            _encode = wrapped.encode
+        }
+        func encode(to encoder: Encoder) throws { try _encode(encoder) }
+    }
+
+    private func sendRPC<T: Decodable>(request: JSONRPCRequest) async throws -> T {
+        // TODO: This RPC client is a placeholder. Replace with a robust blockchain SDK's RPC client.
+        var urlRequest = URLRequest(url: nodeURL)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.httpBody = try JSONEncoder().encode(request)
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw BlockchainClientError.transactionFailed("Invalid response from node")
+        }
+        let rpcResponse = try JSONDecoder().decode(JSONRPCResponse<T>.self, from: data)
+        if let error = rpcResponse.error {
+            throw BlockchainClientError.transactionFailed(error.message)
+        }
+        guard let result = rpcResponse.result else {
+            throw BlockchainClientError.transactionFailed("No result in response")
+        }
+        return result
+    }
+
+    struct JSONRPCResponse<T: Decodable>: Decodable {
+        let result: T?
+        let error: RPCError?
+        struct RPCError: Decodable {
+            let code: Int
+            let message: String
+        }
+    }
+
+    // MARK: - Address Derivation
+    static func deriveAddress(from publicKey: SecKey) -> String {
+        // TODO: Implement real address derivation from SecKey (public key)
+        // This is a placeholder. A real implementation would involve hashing the public key
+        // and encoding it according to the blockchain's address format.
+        let keyData = SecKeyCopyExternalRepresentation(publicKey, nil)! as Data
+        return "echo_pub_" + keyData.base64EncodedString().prefix(10)
     }
 }
 
@@ -131,6 +211,7 @@ enum BlockchainClientError: Error, LocalizedError {
     case walletNotLoaded
     case transactionFailed(String)
     case metadataRegistrationFailed(String)
+    case unsupportedOperation(String)
 
     var errorDescription: String? {
         switch self {
@@ -142,6 +223,8 @@ enum BlockchainClientError: Error, LocalizedError {
             return "Transaction failed: \(message)"
         case .metadataRegistrationFailed(let message):
             return "Sample metadata registration failed: \(message)"
+        case .unsupportedOperation(let message):
+            return message
         }
     }
 }

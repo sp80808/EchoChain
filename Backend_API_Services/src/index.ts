@@ -1,6 +1,7 @@
 import express, { Request, Response, NextFunction, RequestHandler } from 'express';
-import { registerUser, loginUser } from './users';
+import { registerUser, loginUser, getUserProfile } from './users';
 import { checkCopyright } from './copyright';
+import { createSchema } from './db';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
@@ -82,6 +83,8 @@ app.post('/api/login', authRateLimiter, asyncHandler(loginUser));
 
 // Protected routes - apply authenticateToken middleware
 app.post('/api/copyright-check', apiRateLimiter, authenticateToken, asyncHandler(checkCopyright));
+app.get('/api/profile', apiRateLimiter, authenticateToken, asyncHandler(getUserProfile));
+
 
 // Global error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
@@ -89,6 +92,14 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   res.status(500).json({ message: 'An unexpected server error occurred.' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Initialize database and start server
+createSchema()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  })
+  .catch(err => {
+    console.error('Failed to initialize database:', err);
+    process.exit(1);
+  });

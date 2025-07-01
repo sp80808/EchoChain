@@ -1,5 +1,6 @@
 # macOS
 .DS_Store
+._*
 
 # Xcode
 *.xcworkspace
@@ -63,4 +64,4 @@ Sample Browser App/server/build/
 
 # Ignore polkaSK dpcs_files and other non-project files
 polkaSK dpcs_files/
-polkaSK dpcs.html 
+polkaSK dpcs.html

@@ -295,7 +295,196 @@ impl pallet_proof_of_contribution::Config for Runtime {
 }
 
 parameter_types! {
+	pub const CouncilMotionDuration: BlockNumber = 5 * DAYS;
+	pub const CouncilMaxProposals: u32 = 100;
+	pub const CouncilMaxMembers: u32 = 100;
+}
+
+type CouncilCollective = pallet_collective::Instance1;
+impl pallet_collective::Config<CouncilCollective> for Runtime {
+	type RuntimeOrigin = RuntimeOrigin;
+	type Proposal = RuntimeCall;
+	type RuntimeEvent = RuntimeEvent;
+	type MotionDuration = CouncilMotionDuration;
+	type MaxProposals = CouncilMaxProposals;
+	type MaxMembers = CouncilMaxMembers;
+	type DefaultVote = pallet_collective::DefaultVote;
+	type WeightInfo = ();
+	type SetMembersOrigin = frame_system::EnsureRoot<AccountId>;
+}
+
+parameter_types! {
+	pub const ProposalBond: Balance = 1 * DOLLARS;
+	pub const ProposalBondMinimum: Balance = 1 * DOLLARS;
+	pub const ProposalBondMaximum: Option<Balance> = None;
+	pub const SpendPeriod: BlockNumber = 1 * DAYS;
+	pub const BurnDestination: Option<AccountId> = None;
+	pub const SpendFunds: ();
+	pub const MaxApprovals: u32 = 100;
+	pub const MaxSpend: Balance = 1_000_000 * DOLLARS;
+}
+
+impl pallet_treasury::Config for Runtime {
+	type PalletId = TreasuryPalletId;
+	type Currency = Balances;
+	type ApproveOrigin = frame_collective::EnsureMembers<AccountId, CouncilCollective>;
+	type RejectOrigin = frame_collective::EnsureMembers<AccountId, CouncilCollective>;
+	type RuntimeEvent = RuntimeEvent;
+	type OnSlash = ();
+	type ProposalBond = ProposalBond;
+	type ProposalBondMinimum = ProposalBondMinimum;
+	type ProposalBondMaximum = ProposalBondMaximum;
+	type SpendPeriod = SpendPeriod;
+	type BurnDestination = BurnDestination;
+	type SpendFunds = SpendFunds;
+	type WeightInfo = ();
+	type MaxApprovals = MaxApprovals;
+	type SpendOrigin = frame_support::traits::EnsureOneOf<
+		AccountId,
+		frame_system::EnsureRoot<AccountId>,
+		pallet_collective::EnsureMembers<AccountId, CouncilCollective, 1>,
+	>;
+}
+
+parameter_types! {
+	pub const LaunchPeriod: BlockNumber = 7 * DAYS;
+	pub const VotingPeriod: BlockNumber = 7 * DAYS;
+	pub const FastTrackVotingPeriod: BlockNumber = 3 * HOURS;
+	pub const MinimumDeposit: Balance = 100 * DOLLARS;
+	pub const EnactmentPeriod: BlockNumber = 8 * DAYS;
+	pub const CooloffPeriod: BlockNumber = 7 * DAYS;
+	pub const MaxProposals: u32 = 100;
+}
+
+impl pallet_democracy::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type EnactmentPeriod = EnactmentPeriod;
+	type LaunchPeriod = LaunchPeriod;
+	type VotingPeriod = VotingPeriod;
+	type VoteLockingPeriod = EnactmentPeriod; // Same as EnactmentPeriod
+	type MinimumDeposit = MinimumDeposit;
+	/// A straight majority of the council can decide what their next motion is.
+	type ExternalOrigin = frame_collective::EnsureMembers<AccountId, CouncilCollective, 1>;
+	/// A majority can have the next item be tabled.
+	type PromulgateOrigin = frame_system::EnsureRoot<AccountId>;
+	/// Any single council member can set a simple majority.
+	type FastTrackOrigin = frame_collective::EnsureMembers<AccountId, CouncilCollective, 1>;
+	type InstantOrigin = frame_collective::EnsureMembers<AccountId, CouncilCollective, 1>;
+	type InstantPreimageDestWeight = ();
+	type Slash = Treasury;
+	type ReportUnbalanced = Balances;
+	type Scheduler = Scheduler;
+	type PalletsOrigin = OriginCaller;
+	type MaxVotes = ConstU32<100>;
+	type WeightInfo = ();
+	type MaxProposals = MaxProposals;
+	type PreimageByteDeposit = ConstU64<1>;
+	type MaxDeposits = ConstU32<100>;
+	type MaxBlacklisted = ConstU32<100>;
+	type CooloffPeriod = CooloffPeriod;
+	type FastTrackVotingPeriod = FastTrackVotingPeriod;
+}
+
+parameter_types! {
+	pub const CouncilMotionDuration: BlockNumber = 5 * DAYS;
+	pub const CouncilMaxProposals: u32 = 100;
+	pub const CouncilMaxMembers: u32 = 100;
+}
+
+type CouncilCollective = pallet_collective::Instance1;
+impl pallet_collective::Config<CouncilCollective> for Runtime {
+	type RuntimeOrigin = RuntimeOrigin;
+	type Proposal = RuntimeCall;
+	type RuntimeEvent = RuntimeEvent;
+	type MotionDuration = CouncilMotionDuration;
+	type MaxProposals = CouncilMaxProposals;
+	type MaxMembers = CouncilMaxMembers;
+	type DefaultVote = pallet_collective::Default  Vote;
+	type WeightInfo = ();
+	type SetMembersOrigin = frame_system::EnsureRoot<AccountId>;
+}
+
+parameter_types! {
+	pub const ProposalBond: Balance = 1 * DOLLARS;
+	pub const ProposalBondMinimum: Balance = 1 * DOLLARS;
+	pub const ProposalBondMaximum: Option<Balance> = None;
+	pub const SpendPeriod: BlockNumber = 1 * DAYS;
+	pub const BurnDestination: Option<AccountId> = None;
+	pub const SpendFunds: ();
+	pub const MaxApprovals: u32 = 100;
+	pub const MaxSpend: Balance = 1_000_000 * DOLLARS;
+}
+
+impl pallet_treasury::Config for Runtime {
+	type PalletId = TreasuryPalletId;
+	type Currency = Balances;
+	type ApproveOrigin = frame_collective::EnsureMembers<AccountId, CouncilCollective>;
+	type RejectOrigin = frame_collective::EnsureMembers<AccountId, CouncilCollective>;
+	type RuntimeEvent = RuntimeEvent;
+	type OnSlash = ();
+	type ProposalBond = ProposalBond;
+	type ProposalBondMinimum = ProposalBondMinimum;
+	type ProposalBondMaximum = ProposalBondMaximum;
+	type SpendPeriod = SpendPeriod;
+	type BurnDestination = BurnDestination;
+	type SpendFunds = SpendFunds;
+	type WeightInfo = ();
+	type MaxApprovals = MaxApprovals;
+	type SpendOrigin = frame_support::traits::EnsureOneOf<
+		AccountId,
+		frame_system::EnsureRoot<AccountId>,
+		pallet_collective::EnsureMembers<AccountId, CouncilCollective, 1>,
+	>;
+}
+
+parameter_types! {
+	pub const LaunchPeriod: BlockNumber = 7 * DAYS;
+	pub const VotingPeriod: BlockNumber = 7 * DAYS;
+	pub const FastTrackVotingPeriod: BlockNumber = 3 * HOURS;
+	pub const MinimumDeposit: Balance = 100 * DOLLARS;
+	pub const EnactmentPeriod: BlockNumber = 8 * DAYS;
+	pub const CooloffPeriod: BlockNumber = 7 * DAYS;
+	pub const MaxProposals: u32 = 100;
+}
+
+impl pallet_democracy::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type EnactmentPeriod = EnactmentPeriod;
+	type LaunchPeriod = LaunchPeriod;
+	type VotingPeriod = VotingPeriod;
+	type VoteLockingPeriod = EnactmentPeriod; // Same as EnactmentPeriod
+	type MinimumDeposit = MinimumDeposit;
+	/// A straight majority of the council can decide what their next motion is.
+	type ExternalOrigin = frame_collective::EnsureMembers<AccountId, CouncilCollective, 1>;
+	/// A majority can have the next item be tabled.
+	type PromulgateOrigin = frame_system::EnsureRoot<AccountId>;
+	/// Any single council member can set a simple majority.
+	type FastTrackOrigin = frame_collective::EnsureMembers<AccountId, CouncilCollective, 1>;
+	type InstantOrigin = frame_collective::EnsureMembers<AccountId, CouncilCollective, 1>;
+	type InstantPreimageDestWeight = ();
+	type Slash = Treasury;
+	type ReportUnbalanced = Balances;
+	type Scheduler = Scheduler;
+	type PalletsOrigin = OriginCaller;
+	type MaxVotes = ConstU32<100>;
+	type WeightInfo = ();
+	type MaxProposals = MaxProposals;
+	type PreimageByteDeposit = ConstU64<1>;
+	type MaxDeposits = ConstU32<100>;
+	type MaxBlacklisted = ConstU32<100>;
+	type CooloffPeriod = CooloffPeriod;
+	type FastTrackVotingPeriod = FastTrackVotingPeriod;
+}
+
+
+parameter_types! {
 	pub const MinimumPeriod: Moment = SLOT_DURATION / 2;
+}
+
+parameter_types! {
+	pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
 }
 
 impl pallet_timestamp::Config for Runtime {

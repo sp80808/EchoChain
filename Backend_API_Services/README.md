@@ -80,3 +80,10 @@ This service provides lightweight backend APIs for the EchoChain ecosystem, incl
 *   [EchoChain Documentation and Development Plan](../../docs/EchoChain_Documentation_and_Development_Plan.md)
 *   [Architecture Overview](../../docs/architecture.md)
 *   [AsyncAPI Specification](../../docs/asyncapi.yaml) 
+
+## Related Documentation
+
+*   [Main EchoChain Project README](../../README.md)
+*   [EchoChain Documentation and Development Plan](../../docs/EchoChain_Documentation_and_Development_Plan.md)
+*   [Architecture Overview](../../docs/architecture.md)
+*   [AsyncAPI Specification](../../docs/asyncapi.yaml) 

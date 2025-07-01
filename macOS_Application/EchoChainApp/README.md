@@ -83,3 +83,10 @@ print("Total downloaded: \(client.totalBytesDownloaded) bytes")
 *   [macOS Application README (Parent)](../README.md)
 *   [EchoChain Documentation and Development Plan](../../../docs/EchoChain_Documentation_and_Development_Plan.md)
 *   [Architecture Overview](../../../docs/architecture.md) 
+
+## Related Documentation
+
+*   [Main EchoChain Project README](../../../README.md)
+*   [macOS Application README (Parent)](../README.md)
+*   [EchoChain Documentation and Development Plan](../../../docs/EchoChain_Documentation_and_Development_Plan.md)
+*   [Architecture Overview](../../../docs/architecture.md) 

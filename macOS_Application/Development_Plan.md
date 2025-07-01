@@ -69,3 +69,9 @@ This document outlines the key development areas and tasks required to complete 
 2.  **Implement Send/Receive ECHO token functionality:** Complete the `sendTransaction` method in `BlockchainClient.swift`.
 3.  **Add validation for audio file types and sizes** in `SampleUploadView.swift`.
 4.  **Implement search and filtering capabilities** in `SampleBrowserView.swift`.
+
+## Related Documentation
+
+*   [Main EchoChain Project README](../../README.md)
+*   [macOS Application README](../README.md)
+*   [EchoChain Documentation and Development Plan](../../docs/EchoChain_Documentation_and_Development_Plan.md)

@@ -1,3 +1,7 @@
+# For more information, see the main project README: ../../../README.md
+# And the macOS Application README: ../README.md
+# And the EchoChain Documentation and Development Plan: ../../../docs/EchoChain_Documentation_and_Development_Plan.md
+
 # Production Blockchain Client for EchoChain macOS App
 
 This document provides a production-ready Swift blockchain client stub, protocol, and integration notes for the EchoChain macOS app.

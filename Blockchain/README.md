@@ -70,3 +70,12 @@ The core incentive mechanism is based on a "Proof-of-Contribution" model that is
 *   [AsyncAPI Specification](../../docs/asyncapi.yaml)
 *   [Echochain Node README](./echochain-node/README.md)
 *   [Substrate Contracts Node README](./substrate-contracts-node/README.md)
+
+## Related Documentation
+
+*   [Main EchoChain Project README](../../README.md)
+*   [EchoChain Documentation and Development Plan](../../docs/EchoChain_Documentation_and_Development_Plan.md)
+*   [Architecture Overview](../../docs/architecture.md)
+*   [AsyncAPI Specification](../../docs/asyncapi.yaml)
+*   [Echochain Node README](./echochain-node/README.md)
+*   [Substrate Contracts Node README](./substrate-contracts-node/README.md)

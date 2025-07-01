@@ -153,3 +153,10 @@ class Program
 - Change the `filepath` and `content_hash` as needed.
 - Ensure the Python P2P node is running and listening on the correct port.
 - The protocol is simple JSON-over-TCP, so any language with TCP and JSON support can integrate. 
+
+## Related Documentation
+
+*   [Main EchoChain Project README](../../README.md)
+*   [P2P File Sharing System README (Parent)](../README.md)
+*   [EchoChain Documentation and Development Plan](../../docs/EchoChain_Documentation_and_Development_Plan.md)
+*   [Architecture Overview](../../docs/architecture.md) 

@@ -100,3 +100,9 @@ sequenceDiagram
 
 *   [Main EchoChain Project README](../README.md)
 *   [EchoChain Documentation and Development Plan](./EchoChain_Documentation_and_Development_Plan.md)
+*   [Architecture Overview](./architecture.md)
+
+## Related Documentation
+
+*   [Main EchoChain Project README](../README.md)
+*   [EchoChain Documentation and Development Plan](./EchoChain_Documentation_and_Development_Plan.md)

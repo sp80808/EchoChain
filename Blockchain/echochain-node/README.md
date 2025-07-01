@@ -189,3 +189,11 @@ You can quickly spin up a 3-node local EchoChain testnet (Alice, Bob, Charlie) f
 *   [Architecture Overview](../../../docs/architecture.md)
 *   [AsyncAPI Specification](../../../docs/asyncapi.yaml)
 *   [Blockchain README (Parent)](../README.md)
+
+## Related Documentation
+
+*   [Main EchoChain Project README](../../../README.md)
+*   [EchoChain Documentation and Development Plan](../../../docs/EchoChain_Documentation_and_Development_Plan.md)
+*   [Architecture Overview](../../../docs/architecture.md)
+*   [AsyncAPI Specification](../../../docs/asyncapi.yaml)
+*   [Blockchain README (Parent)](../README.md)

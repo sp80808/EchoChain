@@ -55,3 +55,10 @@ This is the native macOS application for the EchoChain platform, providing the m
 *   [EchoChainApp README](./EchoChainApp/README.md)
 *   [EchoChain Documentation and Development Plan](../../docs/EchoChain_Documentation_and_Development_Plan.md)
 *   [Architecture Overview](../../docs/architecture.md) 
+
+## Related Documentation
+
+*   [Main EchoChain Project README](../../README.md)
+*   [EchoChainApp README](./EchoChainApp/README.md)
+*   [EchoChain Documentation and Development Plan](../../docs/EchoChain_Documentation_and_Development_Plan.md)
+*   [Architecture Overview](../../docs/architecture.md) 

@@ -80,3 +80,9 @@ The EchoChain application is the primary user interface for the all-in-one macOS
 *   [Main EchoChain Project README](../../README.md)
 *   [EchoChain Documentation and Development Plan](../../docs/EchoChain_Documentation_and_Development_Plan.md)
 *   [Architecture Overview](../../docs/architecture.md)
+
+## Related Documentation
+
+*   [Main EchoChain Project README](../../README.md)
+*   [EchoChain Documentation and Development Plan](../../docs/EchoChain_Documentation_and_Development_Plan.md)
+*   [Architecture Overview](../../docs/architecture.md)

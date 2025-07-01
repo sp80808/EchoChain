@@ -94,3 +94,9 @@ EchoChain is a novel, gas-free blockchain designed for decentralized music sampl
 *   [Main EchoChain Project README](../README.md)
 *   [Architecture Overview](./architecture.md)
 *   [EchoChain Documentation and Development Plan](./EchoChain_Documentation_and_Development_Plan.md) 
+
+## Related Documentation
+
+*   [Main EchoChain Project README](../README.md)
+*   [Architecture Overview](./architecture.md)
+*   [EchoChain Documentation and Development Plan](./EchoChain_Documentation_and_Development_Plan.md) 

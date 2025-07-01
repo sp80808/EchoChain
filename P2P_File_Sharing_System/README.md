@@ -48,3 +48,9 @@ This component implements the decentralized peer-to-peer file sharing system for
 
 ## Development Plan
 - See main project documentation for detailed milestones and phases. 
+
+## Related Documentation
+
+*   [Main EchoChain Project README](../../README.md)
+*   [EchoChain Documentation and Development Plan](../../docs/EchoChain_Documentation_and_Development_Plan.md)
+*   [Architecture Overview](../../docs/architecture.md) 

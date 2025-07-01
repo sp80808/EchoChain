@@ -71,3 +71,9 @@ The Network Rewards Pallet distributes ECHO token rewards to users who contribut
 
 ---
 For more details, see the Rust doc comments in `pallets/network-rewards/src/lib.rs`. 
+
+## Related Documentation
+
+*   [Main EchoChain Project README](../README.md)
+*   [EchoChain Documentation and Development Plan](./EchoChain_Documentation_and_Development_Plan.md)
+*   [Architecture Overview](./architecture.md) 

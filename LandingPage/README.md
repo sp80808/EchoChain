@@ -74,3 +74,9 @@ The EchoChain application is the primary user interface for the all-in-one macOS
     2.  Implement native macOS features as needed (e.g., menu bar, notifications).
     3.  Test the complete macOS application.
     4.  Prepare for distribution.
+
+## Related Documentation
+
+*   [Main EchoChain Project README](../../README.md)
+*   [EchoChain Documentation and Development Plan](../../docs/EchoChain_Documentation_and_Development_Plan.md)
+*   [Architecture Overview](../../docs/architecture.md)

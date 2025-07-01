@@ -181,3 +181,11 @@ You can quickly spin up a 3-node local EchoChain testnet (Alice, Bob, Charlie) f
 - Ensure all dependencies are installed (see Rust setup and Docker requirements).
 - If ports are in use, stop any running nodes or containers before starting the testnet.
 - Check logs in `/tmp/echochain-<Node>.log` (bash) or container logs (Docker) for errors.
+
+## Related Documentation
+
+*   [Main EchoChain Project README](../../../README.md)
+*   [EchoChain Documentation and Development Plan](../../../docs/EchoChain_Documentation_and_Development_Plan.md)
+*   [Architecture Overview](../../../docs/architecture.md)
+*   [AsyncAPI Specification](../../../docs/asyncapi.yaml)
+*   [Blockchain README (Parent)](../README.md)

@@ -70,3 +70,9 @@ The Sample Browser App is the core component of the EchoChain macOS application.
     1.  Conduct end-to-end testing of all features.
     2.  Perform a security audit of the application and backend.
     3.  Package the application for macOS and prepare for distribution.
+
+## Related Documentation
+
+*   [Main EchoChain Project README](../../README.md)
+*   [EchoChain Documentation and Development Plan](../../docs/EchoChain_Documentation_and_Development_Plan.md)
+*   [Architecture Overview](../../docs/architecture.md)

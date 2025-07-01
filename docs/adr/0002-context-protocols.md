@@ -39,3 +39,9 @@ We will implement the following standardized context protocols:
 ### Neutral
 - Will require CI checks to enforce standards
 - Need to update documentation with major changes
+
+## Related Documentation
+
+*   [Main EchoChain Project README](../../README.md)
+*   [EchoChain Documentation and Development Plan](../EchoChain_Documentation_and_Development_Plan.md)
+*   [Architecture Overview](../architecture.md)

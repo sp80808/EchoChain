@@ -64,3 +64,9 @@ The Content Rewards Pallet is responsible for distributing ECHO token rewards to
 
 ---
 For more details, see the Rust doc comments in `pallets/content-rewards/src/lib.rs`. 
+
+## Related Documentation
+
+*   [Main EchoChain Project README](../README.md)
+*   [EchoChain Documentation and Development Plan](./EchoChain_Documentation_and_Development_Plan.md)
+*   [Architecture Overview](./architecture.md) 

@@ -51,3 +51,9 @@ EchoChain requires clear architectural decisions to guide development and ensure
 - Initial setup complexity
 - Learning curve for some technologies
 - Potential over-engineering for simple features
+
+## Related Documentation
+
+*   [Main EchoChain Project README](../../README.md)
+*   [EchoChain Documentation and Development Plan](../EchoChain_Documentation_and_Development_Plan.md)
+*   [Architecture Overview](../architecture.md)

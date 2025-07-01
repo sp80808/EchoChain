@@ -1,3 +1,4 @@
+# For more information, see the main project README: ../README.md
 asyncapi: 2.6.0
 info:
   title: EchoChain Event API

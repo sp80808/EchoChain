@@ -73,3 +73,10 @@ This service provides lightweight backend APIs for the EchoChain ecosystem, incl
 5. **Automation & Scaling**
    - Automate indexing and matching as part of the sample registration and copyright check flows
    - Consider Dockerizing Audioneex for deployment 
+
+## Related Documentation
+
+*   [Main EchoChain Project README](../../README.md)
+*   [EchoChain Documentation and Development Plan](../../docs/EchoChain_Documentation_and_Development_Plan.md)
+*   [Architecture Overview](../../docs/architecture.md)
+*   [AsyncAPI Specification](../../docs/asyncapi.yaml) 

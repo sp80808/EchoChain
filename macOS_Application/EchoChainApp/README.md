@@ -76,3 +76,10 @@ print("Total downloaded: \(client.totalBytesDownloaded) bytes")
 - The client communicates with the Python P2P node via JSON-over-TCP on the local API port (default: 8002).
 - Ensure the Python node is running before using the client.
 - See the file for more details and error handling. 
+
+## Related Documentation
+
+*   [Main EchoChain Project README](../../../README.md)
+*   [macOS Application README (Parent)](../README.md)
+*   [EchoChain Documentation and Development Plan](../../../docs/EchoChain_Documentation_and_Development_Plan.md)
+*   [Architecture Overview](../../../docs/architecture.md) 

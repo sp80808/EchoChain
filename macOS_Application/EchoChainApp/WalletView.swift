@@ -42,9 +42,18 @@ struct WalletView: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .foregroundColor(.gray)
+                Button(action: {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(blockchainClient.walletAddress, forType: .string)
+                    errorMessage = "Address copied to clipboard!"
+                    showingErrorAlert = true
+                }) {
+                    Image(systemName: "doc.on.doc")
+                }
+                .buttonStyle(PlainButtonStyle())
             }
             .padding(.horizontal)
-            
+
             HStack {
                 Text("Node Connection:")
                     .font(.title2)
@@ -54,6 +63,48 @@ struct WalletView: View {
                     .foregroundColor(blockchainClient.isConnected ? .green : .red)
             }
             .padding(.horizontal)
+
+            Toggle(isOn: $biometricsEnabled) {
+                Text("Enable Biometric Authentication")
+                    .font(.title2)
+            }
+            .padding(.horizontal)
+            .onChange(of: biometricsEnabled) { newValue in
+                Task {
+                    if newValue {
+                        // Attempt to enable biometrics
+                        do {
+                            // Re-save the existing mnemonic with biometrics enabled
+                            if let mnemonic = try await SecureStorage().getMnemonic(requireBiometrics: false) {
+                                try await SecureStorage().saveMnemonic(mnemonic, requireBiometrics: true)
+                                errorMessage = "Biometric authentication enabled."
+                            } else {
+                                errorMessage = "No wallet found to enable biometrics for."
+                                biometricsEnabled = false // Revert toggle if no wallet
+                            }
+                        } catch {
+                            errorMessage = "Failed to enable biometrics: \(error.localizedDescription)"
+                            biometricsEnabled = false // Revert toggle on failure
+                        }
+                    } else {
+                        // Attempt to disable biometrics
+                        do {
+                            // Re-save the existing mnemonic without biometrics
+                            if let mnemonic = try await SecureStorage().getMnemonic(requireBiometrics: true) {
+                                try await SecureStorage().saveMnemonic(mnemonic, requireBiometrics: false)
+                                errorMessage = "Biometric authentication disabled."
+                            } else {
+                                errorMessage = "No wallet found to disable biometrics for."
+                                biometricsEnabled = true // Revert toggle if no wallet
+                            }
+                        } catch {
+                            errorMessage = "Failed to disable biometrics: \(error.localizedDescription)"
+                            biometricsEnabled = true // Revert toggle on failure
+                        }
+                    }
+                    showingErrorAlert = true
+                }
+            }
 
             Divider()
 
@@ -66,7 +117,7 @@ struct WalletView: View {
                     isBlockchainActionLoading = true
                     defer { isBlockchainActionLoading = false }
                     do {
-                        try await blockchainClient.createWallet()
+                        try await blockchainClient.createWallet(requireBiometrics: biometricsEnabled)
                         errorMessage = "New wallet created successfully!"
                         showingErrorAlert = true
                     } catch {
@@ -107,7 +158,7 @@ struct WalletView: View {
                                 showingErrorAlert = true
                                 return
                             }
-                            try await blockchainClient.importWallet(mnemonic: importMnemonicInput)
+                            try await blockchainClient.importWallet(mnemonic: importMnemonicInput, requireBiometrics: biometricsEnabled)
                             importMnemonicInput = "" // Clear input
                             errorMessage = "Wallet imported successfully!"
                             showingErrorAlert = true
@@ -129,7 +180,7 @@ struct WalletView: View {
                     isBlockchainActionLoading = true
                     defer { isBlockchainActionLoading = false }
                     do {
-                        try await blockchainClient.fetchBalance()
+                        try await blockchainClient.fetchBalance(requireBiometrics: biometricsEnabled)
                         errorMessage = "Balance refreshed."
                         showingErrorAlert = true
                     } catch {
@@ -163,16 +214,16 @@ struct WalletView: View {
                     Text("Send ECHO Tokens")
                         .font(.title)
                         .padding(.top)
-                    
+
                     TextField("Recipient Address (SS58)", text: $sendAddress)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .padding(.horizontal)
-                    
+
                     TextField("Amount", text: $sendAmount)
                         .keyboardType(.decimalPad)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .padding(.horizontal)
-                    
+
                     HStack(spacing: 20) {
                         Button("Cancel") {
                             showingSendView = false
@@ -184,7 +235,7 @@ struct WalletView: View {
                         .background(Color.gray)
                         .foregroundColor(.white)
                         .cornerRadius(10)
-                        
+
                         Button("Send") {
                             Task {
                                 isBlockchainActionLoading = true
@@ -195,24 +246,25 @@ struct WalletView: View {
                                         showingErrorAlert = true
                                         return
                                     }
-                                    
+
                                     guard !sendAddress.isEmpty else {
                                         errorMessage = "Please enter a recipient address"
                                         showingErrorAlert = true
                                         return
                                     }
-                                    
+
                                     let txHash = try await blockchainClient.sendTransaction(
                                         to: sendAddress,
-                                        amount: amount
+                                        amount: amount,
+                                        requireBiometrics: biometricsEnabled
                                     )
                                     showingSendView = false
                                     sendAmount = ""
                                     sendAddress = ""
                                     errorMessage = "Transaction sent! Tx Hash: \(txHash)"
                                     showingErrorAlert = true
-                                    try await blockchainClient.fetchBalance()
-                                    try await blockchainClient.fetchTransactionHistory()
+                                    try await blockchainClient.fetchBalance(requireBiometrics: biometricsEnabled)
+                                    try await blockchainClient.fetchTransactionHistory(requireBiometrics: biometricsEnabled)
                                 } catch {
                                     errorMessage = error.localizedDescription
                                     showingErrorAlert = true
@@ -226,7 +278,7 @@ struct WalletView: View {
                         .cornerRadius(10)
                     }
                     .padding(.horizontal)
-                    
+
                     Spacer()
                 }
                 .padding()
@@ -237,7 +289,7 @@ struct WalletView: View {
                     isBlockchainActionLoading = true
                     defer { isBlockchainActionLoading = false }
                     do {
-                        let result = try await blockchainClient.claimRewards()
+                        let result = try await blockchainClient.claimRewards(requireBiometrics: biometricsEnabled)
                         errorMessage = "Rewards claimed! Tx Hash: \(result)"
                         showingErrorAlert = true
                     } catch {
@@ -262,7 +314,7 @@ struct WalletView: View {
                     do {
                         let uploaded = p2pClient.totalBytesUploaded
                         let downloaded = p2pClient.totalBytesDownloaded
-                        let result = try await blockchainClient.submitNetworkContribution(uploaded: uploaded, downloaded: downloaded)
+                        let result = try await blockchainClient.submitNetworkContribution(uploaded: uploaded, downloaded: downloaded, requireBiometrics: biometricsEnabled)
                         errorMessage = "Network contribution submitted! Tx Hash: \(result)"
                         showingErrorAlert = true
                     } catch {
@@ -276,6 +328,29 @@ struct WalletView: View {
                     .padding()
                     .frame(maxWidth: .infinity)
                     .background(Color.purple)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+            }
+            
+            Button(action: {
+                Task {
+                    isBlockchainActionLoading = true
+                    defer { isBlockchainActionLoading = false }
+                    do {
+                        try blockchainClient.deleteWallet()
+                        errorMessage = "Wallet deleted successfully!"
+                        showingErrorAlert = true
+                    } catch {
+                        errorMessage = error.localizedDescription
+                        showingErrorAlert = true
+                    }
+                }
+            }) {
+                Label("Delete Wallet", systemImage: "trash.fill")
+                    .font(.title3)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color.red)
                     .foregroundColor(.white)
                     .cornerRadius(10)
             }
@@ -316,8 +391,14 @@ struct WalletView: View {
             // Initial fetch when view appears
             Task {
                 do {
-                    try await blockchainClient.fetchBalance()
-                    try await blockchainClient.fetchTransactionHistory()
+                    // Check if biometrics are enabled for the stored mnemonic
+                    if let mnemonic = try await SecureStorage().getMnemonic(requireBiometrics: true) {
+                        biometricsEnabled = true
+                    } else {
+                        biometricsEnabled = false
+                    }
+                    try await blockchainClient.fetchBalance(requireBiometrics: biometricsEnabled)
+                    try await blockchainClient.fetchTransactionHistory(requireBiometrics: biometricsEnabled)
                 } catch {
                     errorMessage = error.localizedDescription
                     showingErrorAlert = true
@@ -328,8 +409,8 @@ struct WalletView: View {
             // When wallet address changes (e.g., after create/import), refresh balance and history
             Task {
                 do {
-                    try await blockchainClient.fetchBalance()
-                    try await blockchainClient.fetchTransactionHistory()
+                    try await blockchainClient.fetchBalance(requireBiometrics: biometricsEnabled)
+                    try await blockchainClient.fetchTransactionHistory(requireBiometrics: biometricsEnabled)
                 } catch {
                     errorMessage = error.localizedDescription
                     showingErrorAlert = true

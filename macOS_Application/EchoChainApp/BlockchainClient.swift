@@ -11,17 +11,18 @@ protocol BlockchainClientProtocol: ObservableObject {
     var transactionHistory: [Transaction] { get }
     var isConnected: Bool { get }
 
-    func createWallet() async throws
-    func importWallet(mnemonic: String) async throws
-    func fetchBalance() async throws
-    func fetchTransactionHistory() async throws
-    func sendTransaction(to recipientAddress: String, amount: Double) async throws -> String
-    func registerSampleMetadata(title: String, artist: String, p2pContentId: String, blockchainHash: String) async throws -> String
-    func purchaseSample(sampleId: String, price: Double, recipientAddress: String) async throws -> String
+    func createWallet(requireBiometrics: Bool) async throws
+    func importWallet(mnemonic: String, requireBiometrics: Bool) async throws
+    func deleteWallet() throws
+    func fetchBalance(requireBiometrics: Bool) async throws
+    func fetchTransactionHistory(requireBiometrics: Bool) async throws
+    func sendTransaction(to recipientAddress: String, amount: Double, requireBiometrics: Bool) async throws -> String
+    func registerSampleMetadata(title: String, artist: String, p2pContentId: String, blockchainHash: String, requireBiometrics: Bool) async throws -> String
+    func purchaseSample(sampleId: String, price: Double, recipientAddress: String, requireBiometrics: Bool) async throws -> String
     func checkNodeConnection() async throws -> (chain: String, version: String)
-    func claimRewards() async throws -> String
-    func submitNetworkContribution(uploaded: UInt64, downloaded: UInt64) async throws -> String
-    func submitContentContribution(amount: UInt64) async throws -> String
+    func claimRewards(requireBiometrics: Bool) async throws -> String
+    func submitNetworkContribution(uploaded: UInt64, downloaded: UInt64, requireBiometrics: Bool) async throws -> String
+    func submitContentContribution(amount: UInt64, requireBiometrics: Bool) async throws -> String
 }
 
 // MARK: - Production Blockchain Client
@@ -70,14 +71,35 @@ class RealBlockchainClient: BlockchainClientProtocol {
                 print("Substrate API initialized and connected.")
 
                 // Attempt to load an existing wallet from SecureStorage on initialization.
-                if let mnemonic = try secureStorage.getMnemonic() {
-                    self.currentKeyPair = try Sr25519KeyPair(phrase: mnemonic)
-                    self.walletAddress = self.currentKeyPair?.ss58Address() ?? ""
-                    print("Wallet loaded from mnemonic: \(self.walletAddress)")
-                    await self.fetchBalance()
-                    await self.fetchTransactionHistory()
+                // Prioritize loading with biometrics if available, otherwise without.
+                if secureStorage.canEvaluatePolicy() {
+                    if let mnemonic = try secureStorage.getMnemonic(requireBiometrics: true) {
+                        self.currentKeyPair = try Sr25519KeyPair(phrase: mnemonic)
+                        self.walletAddress = self.currentKeyPair?.ss58Address() ?? ""
+                        print("Wallet loaded from mnemonic with biometrics: \(self.walletAddress)")
+                        await self.fetchBalance(requireBiometrics: true)
+                        await self.fetchTransactionHistory(requireBiometrics: true)
+                    } else if let mnemonic = try secureStorage.getMnemonic(requireBiometrics: false) {
+                        // Fallback to non-biometric if biometric-protected not found
+                        self.currentKeyPair = try Sr25519KeyPair(phrase: mnemonic)
+                        self.walletAddress = self.currentKeyPair?.ss58Address() ?? ""
+                        print("Wallet loaded from mnemonic without biometrics: \(self.walletAddress)")
+                        await self.fetchBalance(requireBiometrics: false)
+                        await self.fetchTransactionHistory(requireBiometrics: false)
+                    } else {
+                        print("No wallet mnemonic found in SecureStorage. User needs to create or import one.")
+                    }
                 } else {
-                    print("No wallet mnemonic found in SecureStorage. User needs to create or import one.")
+                    // If biometrics are not available on the device, try to load without it
+                    if let mnemonic = try secureStorage.getMnemonic(requireBiometrics: false) {
+                        self.currentKeyPair = try Sr2525519KeyPair(phrase: mnemonic)
+                        self.walletAddress = self.currentKeyPair?.ss58Address() ?? ""
+                        print("Wallet loaded from mnemonic (biometrics not available): \(self.walletAddress)")
+                        await self.fetchBalance(requireBiometrics: false)
+                        await self.fetchTransactionHistory(requireBiometrics: false)
+                    } else {
+                        print("No wallet mnemonic found in SecureStorage. User needs to create or import one.")
+                    }
                 }
             } catch {
                 print("Failed to initialize Substrate API or load wallet: \(error.localizedDescription)")
@@ -98,28 +120,43 @@ class RealBlockchainClient: BlockchainClientProtocol {
     }
 
     @MainActor
-    func createWallet() async throws {
-        let newMnemonic = try secureStorage.generateMnemonicAndStore()
+    func createWallet(requireBiometrics: Bool) async throws {
+        let newMnemonic = try await secureStorage.generateMnemonicAndStore(requireBiometrics: requireBiometrics)
         self.currentKeyPair = try Sr25519KeyPair(phrase: newMnemonic)
         self.walletAddress = self.currentKeyPair?.ss58Address() ?? ""
         print("New wallet created: \(self.walletAddress)")
-        await self.fetchBalance()
-        await self.fetchTransactionHistory()
+        await self.fetchBalance(requireBiometrics: requireBiometrics)
+        await self.fetchTransactionHistory(requireBiometrics: requireBiometrics)
     }
 
     @MainActor
-    func importWallet(mnemonic: String) async throws {
-        try secureStorage.saveMnemonic(mnemonic)
+    func importWallet(mnemonic: String, requireBiometrics: Bool) async throws {
+        try await secureStorage.saveMnemonic(mnemonic, requireBiometrics: requireBiometrics)
         self.currentKeyPair = try Sr25519KeyPair(phrase: mnemonic)
         self.walletAddress = self.currentKeyPair?.ss58Address() ?? ""
         print("Wallet imported: \(self.walletAddress)")
-        await self.fetchBalance()
-        await self.fetchTransactionHistory()
+        await self.fetchBalance(requireBiometrics: requireBiometrics)
+        await self.fetchTransactionHistory(requireBiometrics: requireBiometrics)
+    }
+    
+    @MainActor
+    func deleteWallet() throws {
+        try secureStorage.deleteMnemonic()
+        self.currentKeyPair = nil
+        self.walletAddress = ""
+        self.balance = 0.0
+        self.transactionHistory = []
+        print("Wallet deleted.")
     }
 
     @MainActor
-    func fetchBalance() async throws {
+    func fetchBalance(requireBiometrics: Bool) async throws {
         guard let api = self.api else { throw BlockchainClientError.nodeNotConnected }
+        
+        if requireBiometrics {
+            _ = try await authenticateWithBiometrics(reason: "Authenticate to fetch wallet balance.")
+        }
+        
         guard let currentKeyPair = self.currentKeyPair else { throw BlockchainClientError.walletNotLoaded }
         
         let accountId = try currentKeyPair.account(in: api)
@@ -143,8 +180,13 @@ class RealBlockchainClient: BlockchainClientProtocol {
     }
 
     @MainActor
-    func fetchTransactionHistory() async throws {
+    func fetchTransactionHistory(requireBiometrics: Bool) async throws {
         guard let api = self.api else { throw BlockchainClientError.nodeNotConnected }
+        
+        if requireBiometrics {
+            _ = try await authenticateWithBiometrics(reason: "Authenticate to fetch transaction history.")
+        }
+        
         guard let currentKeyPair = self.currentKeyPair else { throw BlockchainClientError.walletNotLoaded }
         
         // Fetching transaction history directly from a Substrate node's RPC is complex.
@@ -235,8 +277,13 @@ class RealBlockchainClient: BlockchainClientProtocol {
     }
 
     @MainActor
-    func sendTransaction(to recipientAddress: String, amount: Double) async throws -> String {
+    func sendTransaction(to recipientAddress: String, amount: Double, requireBiometrics: Bool) async throws -> String {
         guard let api = self.api else { throw BlockchainClientError.nodeNotConnected }
+        
+        if requireBiometrics {
+            _ = try await authenticateWithBiometrics(reason: "Authenticate to send transaction.")
+        }
+        
         guard let currentKeyPair = self.currentKeyPair else { throw BlockchainClientError.walletNotLoaded }
         
         let recipientAccountId = try api.runtime.address(ss58: recipientAddress)
@@ -263,8 +310,13 @@ class RealBlockchainClient: BlockchainClientProtocol {
     }
 
     @MainActor
-    func registerSampleMetadata(title: String, artist: String, p2pContentId: String, blockchainHash: String) async throws -> String {
+    func registerSampleMetadata(title: String, artist: String, p2pContentId: String, blockchainHash: String, requireBiometrics: Bool) async throws -> String {
         guard let api = self.api else { throw BlockchainClientError.nodeNotConnected }
+        
+        if requireBiometrics {
+            _ = try await authenticateWithBiometrics(reason: "Authenticate to register sample metadata.")
+        }
+        
         guard let currentKeyPair = self.currentKeyPair else { throw BlockchainClientError.walletNotLoaded }
         
         // Assuming 'sampleRegistry' pallet has a 'registerSample' extrinsic
@@ -288,8 +340,13 @@ class RealBlockchainClient: BlockchainClientProtocol {
     }
 
     @MainActor
-    func purchaseSample(sampleId: String, price: Double, recipientAddress: String) async throws -> String {
+    func purchaseSample(sampleId: String, price: Double, recipientAddress: String, requireBiometrics: Bool) async throws -> String {
         guard let api = self.api else { throw BlockchainClientError.nodeNotConnected }
+        
+        if requireBiometrics {
+            _ = try await authenticateWithBiometrics(reason: "Authenticate to purchase sample.")
+        }
+        
         guard let currentKeyPair = self.currentKeyPair else { throw BlockchainClientError.walletNotLoaded }
 
         let recipientAccountId = try api.runtime.address(ss58: recipientAddress)
@@ -318,8 +375,13 @@ class RealBlockchainClient: BlockchainClientProtocol {
     }
 
     @MainActor
-    func claimRewards() async throws -> String {
+    func claimRewards(requireBiometrics: Bool) async throws -> String {
         guard let api = self.api else { throw BlockchainClientError.nodeNotConnected }
+        
+        if requireBiometrics {
+            _ = try await authenticateWithBiometrics(reason: "Authenticate to claim rewards.")
+        }
+        
         guard let currentKeyPair = self.currentKeyPair else { throw BlockchainClientError.walletNotLoaded }
 
         // Assuming 'ContentRewards' pallet has a 'claimRewards' extrinsic
@@ -336,8 +398,13 @@ class RealBlockchainClient: BlockchainClientProtocol {
     }
 
     @MainActor
-    func submitNetworkContribution(uploaded: UInt64, downloaded: UInt64) async throws -> String {
+    func submitNetworkContribution(uploaded: UInt64, downloaded: UInt64, requireBiometrics: Bool) async throws -> String {
         guard let api = self.api else { throw BlockchainClientError.nodeNotConnected }
+        
+        if requireBiometrics {
+            _ = try await authenticateWithBiometrics(reason: "Authenticate to submit network contribution.")
+        }
+        
         guard let currentKeyPair = self.currentKeyPair else { throw BlockchainClientError.walletNotLoaded }
 
         // Assuming 'NetworkRewards' pallet has a 'submitReport' extrinsic
@@ -359,8 +426,13 @@ class RealBlockchainClient: BlockchainClientProtocol {
     }
 
     @MainActor
-    func submitContentContribution(amount: UInt64) async throws -> String {
+    func submitContentContribution(amount: UInt64, requireBiometrics: Bool) async throws -> String {
         guard let api = self.api else { throw BlockchainClientError.nodeNotConnected }
+        
+        if requireBiometrics {
+            _ = try await authenticateWithBiometrics(reason: "Authenticate to submit content contribution.")
+        }
+        
         guard let currentKeyPair = self.currentKeyPair else { throw BlockchainClientError.walletNotLoaded }
 
         // Assuming 'ContentRewards' pallet has a 'submitContribution' extrinsic

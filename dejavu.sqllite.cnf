@@ -1,0 +1,4 @@
+[database]
+# SQLite config for development/testing
+type = sqlite
+database = dejavu.db

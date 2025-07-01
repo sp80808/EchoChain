@@ -130,3 +130,54 @@ query {
 ---
 
 For more details, see [SubQuery documentation](https://academy.subquery.network/).
+
+## Running a Local Test Network
+
+You can quickly spin up a 3-node local EchoChain testnet (Alice, Bob, Charlie) for development and testing using either a bash script or Docker Compose.
+
+### Option 1: Bash Script
+
+1. **Build and launch the testnet:**
+   ```bash
+   cd scripts
+   bash run-local-testnet.sh start
+   ```
+   This will build the node (if needed) and launch Alice, Bob, and Charlie nodes with unique ports and persistent chains. Logs are written to `/tmp/echochain-<Node>.log`.
+
+2. **Stop and clean up:**
+   ```bash
+   bash run-local-testnet.sh stop
+   ```
+
+3. **Restart:**
+   ```bash
+   bash run-local-testnet.sh restart
+   ```
+
+### Option 2: Docker Compose
+
+1. **Build the Docker image:**
+   ```bash
+   docker-compose -f docker-compose-testnet.yml build
+   ```
+
+2. **Launch the testnet:**
+   ```bash
+   docker-compose -f docker-compose-testnet.yml up
+   ```
+   This will start Alice, Bob, and Charlie nodes in containers, each with mapped ports and persistent volumes.
+
+3. **Stop the testnet:**
+   ```bash
+   docker-compose -f docker-compose-testnet.yml down
+   ```
+
+#### Node Endpoints
+- Alice: p2p:30333, rpc:9944, ws:9945
+- Bob:   p2p:30334, rpc:9946, ws:9947
+- Charlie: p2p:30335, rpc:9948, ws:9949
+
+#### Troubleshooting
+- Ensure all dependencies are installed (see Rust setup and Docker requirements).
+- If ports are in use, stop any running nodes or containers before starting the testnet.
+- Check logs in `/tmp/echochain-<Node>.log` (bash) or container logs (Docker) for errors.

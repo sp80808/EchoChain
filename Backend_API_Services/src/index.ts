@@ -1,6 +1,7 @@
 import express, { Request, Response, NextFunction, RequestHandler } from 'express';
 import { registerUser, loginUser } from './users';
 import { checkCopyright } from './copyright';
+import { getSamples, registerSample } from './samples';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
@@ -9,6 +10,16 @@ import morgan from 'morgan'; // For request logging
 import dotenv from 'dotenv'; // For environment variables
 
 dotenv.config(); // Load environment variables from .env file
+
+import { AppDataSource } from "./data-source";
+
+import logger from './logger';
+
+AppDataSource.initialize().then(() => {
+    logger.info("Data Source has been initialized!")
+}).catch((err) => {
+    logger.error("Error during Data Source initialization:", err)
+})
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -60,7 +71,7 @@ const authenticateToken: RequestHandler = (req, res, next) => {
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
-      console.error('JWT verification error:', err);
+      logger.error('JWT verification error:', err);
       res.status(403).json({ message: 'Invalid or expired token.' });
       return; // Explicitly return void
     }
@@ -83,12 +94,22 @@ app.post('/api/login', authRateLimiter, asyncHandler(loginUser));
 // Protected routes - apply authenticateToken middleware
 app.post('/api/copyright-check', apiRateLimiter, authenticateToken, asyncHandler(checkCopyright));
 
+// Sample routes
+app.get('/api/samples', apiRateLimiter, asyncHandler(getSamples));
+app.post('/api/samples', apiRateLimiter, authenticateToken, asyncHandler(registerSample));
+
+import { ApiError } from "./errors";
+
 // Global error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   console.error('Global error handler:', err.stack);
-  res.status(500).json({ message: 'An unexpected server error occurred.' });
+  if (err instanceof ApiError) {
+    res.status(err.statusCode).json({ message: err.message });
+  } else {
+    res.status(500).json({ message: 'An unexpected server error occurred.' });
+  }
 });
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  logger.info(`Server running on port ${PORT}`);
 });

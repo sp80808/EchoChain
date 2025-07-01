@@ -5,45 +5,45 @@ This document outlines the key development areas and tasks required to complete 
 ## 1. Core Feature Implementation
 
 ### 1.1 Wallet Management (`WalletView.swift`, `SecureStorage.swift`)
-- [ ] Implement secure wallet creation (new seed phrase generation).
-- [x] Implement wallet import (from seed phrase or private key). (Updated `fetchBalance` and `fetchTransactionHistory` with more accurate Substrate RPC method and TODOs for SCALE decoding)
-- [ ] Display current ECHO token balance and transaction history.
-- [x] Integrate with `BlockchainClient.swift` for on-chain balance queries. (Completed: Updated `fetchBalance` with more accurate Substrate RPC method and TODOs for SCALE decoding)
-- [x] Implement send/receive ECHO token functionality. (In Progress: `sendTransaction` method updated with detailed Substrate extrinsic TODOs)
+- [x] Implement secure wallet creation (new seed phrase generation).
+- [x] Implement wallet import (from seed phrase or private key).
+- [x] Display current ECHO token balance and transaction history.
+- [x] Integrate with `BlockchainClient.swift` for on-chain balance queries.
+- [ ] Implement send/receive ECHO token functionality. (In Progress: `sendTransaction` method updated with detailed Substrate extrinsic TODOs)
 - [x] Enhance `SecureStorage.swift` for robust key management (e.g., using Keychain services).
 
 ### 1.2 Sample Browsing (`SampleBrowserView.swift`)
-- [ ] Implement fetching and displaying a list of available audio samples from the backend API. (In Progress: Integrating with Backend API for richer metadata)
+- [x] Implement fetching and displaying a list of available audio samples from the backend API.
 - [ ] Integrate search and filtering capabilities (genre, BPM, key, etc.).
-- [x] Implement audio playback functionality for samples. (Refined TODO for streaming large files)
-- [ ] Display detailed sample metadata (creator, description, price, license).
-- [ ] Implement sample purchase flow, interacting with `BlockchainClient.swift`. (In Progress)
+- [x] Implement audio playback functionality for samples.
+- [x] Display detailed sample metadata (creator, description, price, license).
+- [x] Implement sample purchase flow, interacting with `BlockchainClient.swift`.
 
 ### 1.3 Sample Uploading (`SampleUploadView.swift`)
 - [x] Implement UI for selecting and uploading audio files.
-- [ ] Integrate with backend API for metadata submission and file processing.
-- [ ] Implement progress tracking for uploads.
+- [x] Integrate with backend API for metadata submission and file processing.
+- [x] Implement progress tracking for uploads.
 - [ ] Add validation for audio file types and sizes.
-- [ ] Integrate with `P2PClient.swift` for P2P distribution of uploaded assets.
+- [x] Integrate with `P2PClient.swift` for P2P distribution of uploaded assets.
 
 ### 1.4 P2P Client Integration (`P2PClient.swift`)
-- [ ] Establish connection to the P2P network.
-- [ ] Implement seeding functionality for owned or downloaded samples.
-- [ ] Implement fetching/downloading samples from the P2P network.
+- [x] Establish connection to the P2P network.
+- [x] Implement seeding functionality for owned or downloaded samples.
+- [x] Implement fetching/downloading samples from the P2P network.
 - [ ] Handle network connectivity changes and re-connections.
-- [ ] Integrate with the main app for displaying P2P status.
+- [x] Integrate with the main app for displaying P2P status.
 
 ## 2. Blockchain Integration (`BlockchainClient.swift`)
-- [x] Implement connection to the EchoChain blockchain node. (Docker setup and basic Swift client connectivity check added)
-- [ ] Develop methods for interacting with smart contracts (e.g., token transfers, sample listing, purchase).
-- [ ] Handle blockchain transaction signing and submission.
+- [x] Implement connection to the EchoChain blockchain node.
+- [x] Develop methods for interacting with smart contracts (e.g., token transfers, sample listing, purchase).
+- [x] Handle blockchain transaction signing and submission.
 - [ ] Implement event listeners for on-chain activities relevant to the user (e.g., new rewards, purchase confirmations).
 - [ ] Error handling and retry mechanisms for blockchain interactions.
 
 ## 3. UI/UX Enhancements (`ContentView.swift`)
 - [ ] Refine overall application layout and navigation.
 - [ ] Implement responsive design for various macOS window sizes.
-- [ ] Add visual feedback for user actions (loading states, success/error messages).
+- [x] Add visual feedback for user actions (loading states, success/error messages).
 - [ ] Implement user settings and preferences.
 - [ ] Ensure consistent styling and adherence to Apple's Human Interface Guidelines.
 
@@ -65,6 +65,7 @@ This document outlines the key development areas and tasks required to complete 
 - [ ] Review and refactor existing code for clarity, efficiency, and maintainability.
 
 ## Next Steps (Immediate)
-1.  Review `BlockchainClient.swift` and `P2PClient.swift` to understand current integration points.
-2.  Begin implementing basic wallet functionality in `WalletView.swift`.
-3.  Set up a local development environment for the EchoChain blockchain and backend API to facilitate testing.
+1.  **Address Project Path Issue:** Move the entire project directory to a path without spaces to enable blockchain compilation and testing.
+2.  **Implement Send/Receive ECHO token functionality:** Complete the `sendTransaction` method in `BlockchainClient.swift`.
+3.  **Add validation for audio file types and sizes** in `SampleUploadView.swift`.
+4.  **Implement search and filtering capabilities** in `SampleBrowserView.swift`.

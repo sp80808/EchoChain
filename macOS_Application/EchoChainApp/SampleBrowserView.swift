@@ -2,13 +2,15 @@ import SwiftUI
 import AVFoundation
 
 struct SampleBrowserView: View {
-    @StateObject private var p2pClient = RealP2PClient() // Use RealP2PClient
-    @State private var samples: [P2PFileMetadata] = []
+    @StateObject private var backendAPIClient = RealBackendAPIClient()
+    @EnvironmentObject private var blockchainClient: RealBlockchainClient
+    @State private var samples: [Sample] = []
     @State private var showingErrorAlert = false
     @State private var errorMessage: String = ""
     @State private var audioPlayer: AVPlayer?
     @State private var searchQuery: String = ""
     @State private var filterCategory: String = ""
+    @State private var isLoadingSamples: Bool = false // New loading state
 
     var body: some View {
         VStack {
@@ -33,17 +35,30 @@ struct SampleBrowserView: View {
             }
             .padding(.top)
 
-            if samples.isEmpty {
+            if isLoadingSamples { // Use new loading state
                 ProgressView("Loading Samples...")
+                    .padding()
+            } else if samples.isEmpty {
+                Text("No samples available. Try uploading one!")
+                    .foregroundColor(.gray)
                     .padding()
             } else {
                 List(filteredSamples) { sample in
                     SampleRow(sample: sample, playAction: {
                         Task {
                             do {
-                                await playSample(contentId: sample.contentId)
+                                await playSample(contentId: sample.p2pContentId)
                             } catch {
-                                errorMessage = "Failed to play sample: \(error.localizedDescription)"
+                                errorMessage = error.localizedDescription
+                                showingErrorAlert = true
+                            }
+                        }
+                    }, purchaseAction: {
+                        Task {
+                            do {
+                                try await purchaseSample(sample: sample)
+                            } catch {
+                                errorMessage = error.localizedDescription
                                 showingErrorAlert = true
                             }
                         }
@@ -68,7 +83,6 @@ struct SampleBrowserView: View {
         .navigationTitle("Samples")
         .onAppear {
             Task {
-                // TODO: Ensure samples are fetched efficiently and refreshed as needed.
                 await fetchSamples()
             }
         }
@@ -79,7 +93,7 @@ struct SampleBrowserView: View {
         }
     }
 
-    var filteredSamples: [P2PFileMetadata] {
+    var filteredSamples: [Sample] {
         samples.filter { sample in
             (searchQuery.isEmpty || sample.title.localizedCaseInsensitiveContains(searchQuery)) &&
             (filterCategory.isEmpty || sample.category == filterCategory)
@@ -87,46 +101,28 @@ struct SampleBrowserView: View {
     }
 
     private func fetchSamples() async {
-        var retryCount = 0
-        let maxRetries = 3
+        isLoadingSamples = true
+        defer { isLoadingSamples = false }
         do {
-            while !p2pClient.isConnected && retryCount < maxRetries {
-                do {
-                    try await p2pClient.connect()
-                } catch {
-                    retryCount += 1
-                    if retryCount >= maxRetries {
-                        throw error
-                    }
-                }
-            }
-            samples = try await p2pClient.fetchAvailableSamples()
+            samples = try await backendAPIClient.fetchSamples(query: searchQuery, category: filterCategory)
         } catch {
             errorMessage = error.localizedDescription
             showingErrorAlert = true
         }
     }
 
-    private func playSample(contentId: String) async {
-        do {
-            // TODO: Implement proper audio streaming or progressive download for large files.
-            // The current implementation downloads the entire file before playing, which is inefficient for large samples.
-            // Consider using AVPlayerItem with AVAssetResourceLoaderDelegate for custom loading,
-            // or integrating a dedicated streaming library that works with the P2P client.
-            let fileURL = try await p2pClient.downloadFile(contentId: contentId)
-            audioPlayer = AVPlayer(url: fileURL)
-            audioPlayer?.play()
-            print("Playing sample from: \(fileURL.lastPathComponent)")
-        } catch {
-            errorMessage = "Failed to play sample: \(error.localizedDescription)"
-            showingErrorAlert = true
-        }
+    private func purchaseSample(sample: Sample) async throws {
+        print("Purchasing sample: \(sample.title)")
+        let txHash = try await blockchainClient.purchaseSample(sampleId: sample.id, price: sample.price, recipientAddress: sample.ownerAddress)
+        errorMessage = "Successfully purchased \(sample.title)! Transaction Hash: \(txHash)"
+        showingErrorAlert = true
     }
 }
 
 struct SampleRow: View {
-    let sample: P2PFileMetadata
+    let sample: Sample
     let playAction: () -> Void
+    let purchaseAction: () -> Void
 
     var body: some View {
         HStack {
@@ -140,10 +136,21 @@ struct SampleRow: View {
             Spacer()
             Text(sample.duration)
                 .font(.subheadline)
+            Text("Price: \(sample.price, specifier: "%.4f")")
+                .font(.subheadline)
+            Text("ID: \(sample.p2pContentId)")
+                .font(.caption)
+                .lineLimit(1)
+                .truncationMode(.middle)
             Button(action: playAction) {
                 Image(systemName: "play.circle.fill")
                     .font(.title)
                     .foregroundColor(.blue)
+            }
+            Button(action: purchaseAction) {
+                Image(systemName: "cart.fill")
+                    .font(.title)
+                    .foregroundColor(.green)
             }
         }
         .padding(.vertical, 5)
@@ -154,6 +161,7 @@ struct SampleBrowserView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
             SampleBrowserView()
+                .environmentObject(RealBlockchainClient())
         }
     }
 }

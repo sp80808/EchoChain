@@ -46,4 +46,30 @@ This service provides lightweight backend APIs for the EchoChain ecosystem, incl
 3. Start the service: `npm run start`
 
 ## Development Plan
-- See main project documentation for detailed milestones and phases. 
+- See main project documentation for detailed milestones and phases.
+
+## Copyright Audio Detection Engine
+
+### Selected Solution: Audioneex
+- **Why Audioneex?**
+  - Open source (Mozilla Public License 2.0), robust, and actively maintained
+  - Real-time audio fingerprinting and matching
+  - Fast, portable (C++), and suitable for server-side integration
+  - Well-documented API and CLI tools
+
+### Setup & Integration Plan
+1. **Clone and Build Audioneex**
+   - `git clone https://github.com/audioneex/audioneex.git`
+   - `cd audioneex && mkdir build && cd build && cmake .. && make`
+2. **Index Reference Audio**
+   - Use the CLI to fingerprint and index your reference tracks (royalty-free, copyrighted, etc.)
+   - `./audioneex index /path/to/reference/audio/`
+3. **Detect Copyright in New Uploads**
+   - Use the CLI or C++ API to match new uploads against the indexed database
+   - `./audioneex match /path/to/query/audio.wav`
+4. **Backend Integration**
+   - Wrap the CLI in a Node.js/Python script or use the C++ API directly
+   - Integrate this check into the `/api/copyright-check` endpoint
+5. **Automation & Scaling**
+   - Automate indexing and matching as part of the sample registration and copyright check flows
+   - Consider Dockerizing Audioneex for deployment 

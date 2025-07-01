@@ -80,81 +80,90 @@ The following are the primary components that require detailed documentation and
     *   Smart contracts: Design for content registration, ownership transfer, royalty distribution, and network reward distribution.
     *   Node architecture (full nodes, light nodes).
 *   **Core Technologies Utilized:**
-    *   Potential languages (e.g., Rust, Go, C++).
-    *   Cryptographic libraries.
-    *   Database for ledger storage.
+    *   Rust/Substrate for blockchain node and FRAME pallets.
+    *   ink! for smart contract development (e.g., Flipper contract).
+    *   Cryptographic libraries (e.g., `sp-core`, `sp-runtime`).
+    *   Database for ledger storage (Substrate's native storage).
 *   **External and Internal Dependencies:**
-    *   Cryptography standards.
-    *   Integration points with macOS App and Backend/API Services.
+    *   Cryptography standards (SR25519 for keypairs).
+    *   Integration points with macOS App (via `Substrate.swift` SDK) and Backend/API Services.
 *   **API Specifications:**
-    *   RPC/WebSockets for node interaction.
-    *   Smart contract interfaces.
+    *   Substrate RPC/WebSockets for node interaction (e.g., `system_chain`, `state_getStorage`, `author_submitExtrinsic`).
+    *   FRAME pallet extrinsics (e.g., `Balances.transfer`, `SampleRegistry.registerSample`, `ProofOfContribution.recordContentContribution`, `ProofOfContribution.claimRewards`).
+    *   ink! smart contract interfaces (e.g., Flipper contract's `flip` and `get` messages).
 *   **Relevant Data Models:**
     *   Block header and body structure.
-    *   Transaction types (content upload, token transfer, reward claim).
-    *   User accounts, wallet addresses.
-    *   Content metadata structure on-chain.
+    *   Transaction types (content upload, token transfer, reward claim, smart contract calls).
+    *   User accounts, SR25519 wallet addresses (SS58 format).
+    *   Content metadata structure on-chain (managed by `pallet-sample-registry`).
+    *   AccountInfo structure for balance queries.
 *   **Security Implications:**
     *   Consensus mechanism robustness against attacks (e.g., 51% attack).
-    *   Smart contract auditability and vulnerability prevention (e.g., reentrancy).
-    *   Key management and transaction signing.
+    *   Smart contract auditability and vulnerability prevention (e.g., reentrancy, integer overflow).
+    *   SR25519 key management and transaction signing.
 *   **Robust Testing Strategy:**
-    *   Unit tests for cryptographic functions, block validation.
-    *   Integration tests for smart contract interactions.
+    *   Unit tests for cryptographic functions, block validation, and pallet logic.
+    *   Integration tests for smart contract interactions (e.g., ink! e2e tests).
     *   Network simulation for consensus testing.
     *   Performance testing for transaction throughput.
 
 **Development Plan:**
 
-*   **Phases:** Research & Design, Core Blockchain Implementation, Smart Contract Development, Network Testing & Optimization.
-*   **Specific Tasks:** PoC algorithm design, block validation logic, P2P network layer, tokenomics implementation, smart contract coding (Solidity/Rust), testnet deployment.
+*   **Phases:** Research & Design, Core Blockchain Implementation, Smart Contract Development, Network Testing & Optimization, Documentation.
+*   **Specific Tasks:** PoC algorithm design, block validation logic, P2P network layer, tokenomics implementation, FRAME pallet development (`pallet-sample-registry`, `pallet-proof-of-contribution`), ink! smart contract coding (e.g., Flipper), automated testnet deployment, initial asset distribution, comprehensive documentation.
 *   **Estimated Timelines:** (e.g., 4-6 months)
-*   **Resource Allocation:** Blockchain architects, smart contract developers, cryptography experts, network engineers.
-*   **Potential Risks:** Consensus mechanism vulnerabilities, scalability issues, smart contract bugs, regulatory compliance.
-*   **Critical Milestones:** PoC prototype, basic blockchain functional, core smart contracts deployed on testnet, stable testnet.
+*   **Resource Allocation:** Blockchain architects, smart contract developers, cryptography experts, network engineers, technical writers.
+*   **Potential Risks:** Consensus mechanism vulnerabilities, scalability issues, smart contract bugs, regulatory compliance, integration complexities with client applications.
+*   **Critical Milestones:** PoC prototype, basic blockchain functional, core FRAME pallets integrated, Flipper ink! smart contract deployed on testnet, stable testnet with automated setup, initial asset distribution, comprehensive documentation.
 
 ### 2. Native macOS Application
 
 **Technical Documentation:**
 
-*   **Purpose:** User-facing interface for interacting with EchoChain, including wallet, sample browsing, uploading, and P2P client integration.
+*   **Purpose:** User-facing interface for interacting with EchoChain, including wallet management, sample browsing, uploading, and P2P client integration.
 *   **Architectural Design:**
-    *   MVC/MVVM/VIPER architecture.
-    *   UI/UX design principles.
-    *   Integration points with blockchain (wallet), P2P system, and backend services.
+    *   MVVM architecture with SwiftUI for UI.
+    *   Clear separation of concerns between UI, business logic (BlockchainClient, P2PClient), and data persistence (SecureStorage).
+    *   Integration points with EchoChain Blockchain (via `Substrate.swift` SDK), P2P File Sharing System, and Backend/API Services.
 *   **Core Technologies Utilized:**
-    *   Swift/Objective-C, SwiftUI/AppKit.
-    *   Local database (e.g., Core Data, Realm).
-    *   Networking libraries.
+    *   Swift, SwiftUI for application development.
+    *   `Substrate.swift` for blockchain interaction (RPC, extrinsics, queries).
+    *   `SubstrateKeychain` for SR25519 keypair generation and management.
+    *   macOS Keychain for secure storage of mnemonic phrases.
+    *   `Network` framework for P2P client communication.
 *   **External and Internal Dependencies:**
-    *   EchoChain Blockchain SDK/Client.
-    *   P2P File Sharing System client library.
-    *   Backend API client.
+    *   EchoChain Blockchain Node (local or remote).
+    *   Python P2P File Sharing System (local API).
+    *   Lightweight Backend/API Services (for sample metadata lookup).
+    *   `Substrate.swift` SDK.
 *   **API Specifications:**
-    *   Internal APIs for component interaction.
-    *   External APIs consumed (blockchain, backend).
+    *   Internal APIs for component interaction (e.g., `BlockchainClientProtocol`, `P2PClientProtocol`).
+    *   External APIs consumed: Substrate RPC/WebSockets, P2P local API (JSON-over-TCP), Backend REST API.
 *   **Relevant Data Models:**
-    *   Local wallet data.
-    *   Cached sample metadata.
+    *   Local wallet data (mnemonic, derived address).
+    *   Cached sample metadata (P2PFileMetadata).
+    *   Transaction history (Transaction struct).
     *   User preferences.
 *   **Security Implications:**
-    *   Local key storage security.
-    *   Secure communication with blockchain and backend.
+    *   Secure storage of mnemonic phrases in macOS Keychain.
+    *   SR25519-based secure transaction signing using `SubstrateKeychain`.
+    *   Secure communication with blockchain node (WSS) and P2P local API.
     *   Protection against unauthorized access to user data.
+    *   Input validation and error handling for all user interactions.
 *   **Robust Testing Strategy:**
-    *   Unit tests for business logic.
-    *   UI tests for user flows.
-    *   Integration tests for wallet and P2P functionality.
-    *   Performance testing for responsiveness.
+    *   Unit tests for business logic (e.g., wallet operations, data parsing).
+    *   UI tests for critical user flows (e.g., wallet creation, sample upload, sample playback).
+    *   Integration tests for blockchain and P2P functionality (e.g., end-to-end transaction flow, file transfer).
+    *   Performance testing for UI responsiveness and network operations.
 
 **Development Plan:**
 
-*   **Phases:** UI/UX Design, Wallet Integration, Sample Management (Browse/Upload), P2P Client Integration, Testing & Optimization.
-*   **Specific Tasks:** Wallet creation/import, transaction signing, sample metadata display, audio playback, file upload interface, P2P connection management.
+*   **Phases:** UI/UX Design, Wallet Integration, Sample Management (Browse/Upload), P2P Client Integration, Testing & Optimization, Documentation.
+*   **Specific Tasks:** Implement wallet creation/import using `SubstrateKeychain`, integrate `Substrate.swift` for balance/history/transaction sending, implement secure transaction signing, integrate P2P client for file upload/download, register sample metadata on-chain, enhance error handling and UI feedback, develop comprehensive user guides.
 *   **Estimated Timelines:** (e.g., 3-5 months)
-*   **Resource Allocation:** macOS developers, UI/UX designers, QA engineers.
-*   **Potential Risks:** UI/UX complexity, performance bottlenecks, platform-specific issues, security vulnerabilities in local storage.
-*   **Critical Milestones:** Functional wallet, basic sample browsing, successful sample upload, integrated P2P client.
+*   **Resource Allocation:** macOS developers, UI/UX designers, QA engineers, technical writers.
+*   **Potential Risks:** UI/UX complexity, performance bottlenecks, platform-specific issues, security vulnerabilities in local storage, compatibility issues with blockchain/P2P node updates.
+*   **Critical Milestones:** Functional wallet with real blockchain integration, secure transaction signing, basic sample browsing and upload with P2P and blockchain metadata, integrated P2P client with polling for downloads, comprehensive error handling and UI feedback, initial user and developer documentation.
 
 ### 3. Peer-to-Peer File Sharing System
 
@@ -281,6 +290,73 @@ The following are the primary components that require detailed documentation and
 *   **Potential Risks:** Cloud vendor lock-in, infrastructure costs, security misconfigurations, downtime during deployments.
 *   **Critical Milestones:** Automated build for all components, automated deployment to staging, comprehensive monitoring in place, production deployment.
 
+## Blockchain Test Network Deployment
+
+To facilitate rapid development and testing, EchoChain provides a comprehensive suite of automated scripts for launching a local, configurable multi-node blockchain test network. This setup includes node configuration, smart contract compilation and deployment, and initial asset distribution.
+
+### Automated Deployment Script
+
+-   **Bash Script:**
+    *   **Location:** [`Blockchain/echochain-node/scripts/run-local-testnet.sh`](Blockchain/echochain-node/scripts/run-local-testnet.sh:1)
+    *   **Purpose:** This script orchestrates the entire local testnet setup. It builds the EchoChain node, launches multiple validator nodes (Alice, Bob, Charlie), installs necessary JavaScript dependencies (`@polkadot/api`), compiles ink! smart contracts, deploys them to the running testnet, and distributes initial assets to predefined accounts.
+    *   **Usage:**
+        ```bash
+        cd Blockchain/echochain-node/scripts
+        bash run-local-testnet.sh start
+        ```
+        This command will:
+        1.  Build the `echochain-node` binary (if not already built).
+        2.  Launch three validator nodes: Alice (RPC: 9944, WS: 9945), Bob (RPC: 9946, WS: 9947), and Charlie (RPC: 9948, WS: 9949).
+        3.  Install `@polkadot/api` in the `echochain-node` directory.
+        4.  Compile all ink! smart contracts located in `Blockchain/contracts/` (e.g., `flipper`).
+        5.  Deploy the compiled smart contracts to the testnet.
+        6.  Distribute initial ECHO tokens from Alice to Bob and Charlie.
+        Logs for each node are written to `/tmp/echochain-<Node>.log`.
+
+    *   **Stopping and Restarting:**
+        ```bash
+        bash run-local-testnet.sh stop    # Stops all nodes and cleans up data
+        bash run-local-testnet.sh restart # Stops, cleans up, and relaunches nodes, recompiles, and redeploys contracts
+        ```
+
+-   **Docker Compose:**
+    *   **Location:** [`Blockchain/echochain-node/docker-compose-testnet.yml`](Blockchain/echochain-node/docker-compose-testnet.yml:1)
+    *   **Purpose:** Provides an alternative method to spin up the testnet nodes in isolated Docker containers with persistent volumes and mapped ports. This is ideal for consistent environments.
+    *   **Usage:**
+        ```bash
+        cd Blockchain/echochain-node
+        docker-compose -f docker-compose-testnet.yml build # Build the Docker image
+        docker-compose -f docker-compose-testnet.yml up   # Launch the testnet in containers
+        ```
+    *   **Stopping:**
+        ```bash
+        docker-compose -f docker-compose-testnet.yml down # Stops and removes containers
+        ```
+
+### Smart Contract Specifications
+
+The EchoChain project utilizes ink! smart contracts for specific on-chain logic. An example contract, `flipper`, is provided for demonstration and testing purposes.
+
+-   **Flipper Contract:**
+    *   **Location:** [`Blockchain/contracts/flipper/`](Blockchain/contracts/flipper/Cargo.toml)
+    *   **Purpose:** A simple ink! contract that stores a boolean value and allows it to be flipped. It serves as a basic example for contract compilation and deployment.
+    *   **Compilation:** Handled automatically by `run-local-testnet.sh` using `cargo contract build`. The compiled `.wasm` and `.json` (ABI) files are placed in `Blockchain/contracts/flipper/target/ink/`.
+    *   **Deployment:** The `deploy-and-fund.js` script automatically deploys an instance of the `flipper` contract to the local testnet during setup.
+
+### Initial Asset Distribution
+
+The `deploy-and-fund.js` script also handles the initial distribution of ECHO tokens on the testnet.
+
+-   **Script Location:** [`Blockchain/echochain-node/scripts/deploy-and-fund.js`](Blockchain/echochain-node/scripts/deploy-and-fund.js:1)
+-   **Functionality:** Connects to the Alice node, and transfers a predefined amount of ECHO tokens to Bob and Charlie's accounts, ensuring they have funds for testing transactions and interactions.
+
+### Detailed Instructions and Troubleshooting
+
+-   For step-by-step usage, expected outputs, and troubleshooting tips for running the local test network, refer to the `Blockchain/echochain-node/README.md` under the "Running a Local Test Network" section.
+-   Ensure your Rust toolchain is correctly set up with `wasm32-unknown-unknown` target and `cargo-contract` installed for smart contract compilation.
+
+These automated tools and detailed documentation ensure that all contributors can easily set up and test blockchain changes in a realistic multi-node environment, supporting robust development and validation workflows.
+
 ## Visualizing the Plan
 
 Here's a high-level Mermaid diagram illustrating the component dependencies and the overall flow:
@@ -322,3 +398,119 @@ graph TD
         F -- "Purpose, Design, Tech, Deps, APIs, Data, Security, Testing" --> F_Doc(DevOps Documentation)
         F -- "Phases, Tasks, Timelines, Resources, Risks, Milestones" --> F_Plan(DevOps Development Plan)
     end
+```
+
+# Path to Production Readiness & Feature Roadmap
+
+EchoChain is a robust MVP, but several critical features and operational requirements must be addressed to achieve production readiness. This section outlines the missing features, open-source projects to leverage/contribute to, and a phased plan for implementation, integration, and launch.
+
+## 1. Governance & On-Chain Upgrades
+- **Features:**
+  - On-chain governance (democracy, council, treasury, proposals, referenda)
+  - Upgradeability and parameter changes via governance
+- **Open Source Projects:**
+  - [pallet-democracy](https://github.com/paritytech/substrate/tree/master/frame/democracy)
+  - [pallet-collective](https://github.com/paritytech/substrate/tree/master/frame/collective)
+  - [pallet-treasury](https://github.com/paritytech/substrate/tree/master/frame/treasury)
+- **Plan:**
+  - Integrate and configure these pallets in the runtime
+  - Customize proposal types for EchoChain-specific needs (e.g., content moderation, reward changes)
+  - Develop governance UI for proposals/voting
+  - Test governance flows on testnet
+
+## 2. Oracle & Off-Chain Automation
+- **Features:**
+  - Automated sample moderation (status updates)
+  - External data feeds (e.g., copyright checks, usage stats)
+- **Open Source Projects:**
+  - [Substrate Offchain Workers](https://github.com/paritytech/substrate-offchain-worker-demo)
+  - [Chainlink Substrate Integration](https://github.com/smartcontractkit/chainlink-polkadot)
+- **Plan:**
+  - Implement an Oracle pallet or off-chain worker for automated moderation
+  - Integrate with external APIs for copyright/metadata
+  - Contribute improvements to open-source oracle frameworks
+
+## 3. Advanced Smart Contracts
+- **Features:**
+  - Royalty distribution, licensing, advanced content management
+  - NFT/PSP22/PSP34 support for music assets
+- **Open Source Projects:**
+  - [OpenBrush](https://github.com/Supercolony-net/openbrush-contracts)
+  - [ink! PSP Standards](https://github.com/Supercolony-net/openbrush-contracts/tree/main/contracts)
+- **Plan:**
+  - Develop and deploy production-grade ink! contracts for royalties, licensing, and NFTs
+  - Integrate contract calls with frontend and backend
+  - Contribute reusable contracts to OpenBrush/ink! ecosystem
+
+## 4. Security, Auditing, and Multi-Sig
+- **Features:**
+  - Formal audit of runtime and contracts
+  - Multi-sig wallets for treasury and upgrades
+  - On-chain upgrade safety
+- **Open Source Projects:**
+  - [substrate-contracts-node](https://github.com/paritytech/substrate-contracts-node)
+  - [cargo-contract](https://github.com/paritytech/cargo-contract)
+- **Plan:**
+  - Integrate multi-sig pallet for treasury and admin actions
+  - Schedule a third-party audit (runtime, pallets, contracts)
+  - Add on-chain upgrade tests and safety checks
+  - Contribute to security tools and best practices
+
+## 5. Interoperability (XCM, Bridges)
+- **Features:**
+  - Cross-chain asset/content transfer
+  - Future integration with Polkadot/Kusama ecosystem
+- **Open Source Projects:**
+  - [Polkadot XCM](https://github.com/paritytech/polkadot-sdk/tree/master/xcm)
+  - [Snowbridge](https://github.com/Snowfork/polkadot-ethereum)
+- **Plan:**
+  - Add XCM support for asset/content transfer
+  - Explore bridge integration for future cross-chain use cases
+  - Contribute to XCM tooling and documentation
+
+## 6. Monitoring, DevOps, and Disaster Recovery
+- **Features:**
+  - Live monitoring, alerting, and logging
+  - Automated deployment, backup, and recovery
+- **Open Source Projects:**
+  - [substrate-telemetry](https://github.com/paritytech/substrate-telemetry)
+  - [Prometheus/Grafana](https://prometheus.io/), [ELK Stack](https://www.elastic.co/elk-stack)
+- **Plan:**
+  - Integrate Prometheus/Grafana for node and network monitoring
+  - Set up alerting and log aggregation
+  - Automate deployment and backup scripts
+  - Contribute improvements to Substrate telemetry and monitoring tools
+
+## 7. Comprehensive Testing & Auditing
+- **Features:**
+  - Full e2e, adversarial, and fuzz testing
+  - Testnet/mainnet upgrade simulation
+- **Open Source Projects:**
+  - [Substrate test utilities](https://github.com/paritytech/substrate/tree/master/test-utils)
+  - [cargo-fuzz](https://github.com/rust-fuzz/cargo-fuzz)
+- **Plan:**
+  - Expand test coverage for all pallets and contracts
+  - Add adversarial and fuzz tests
+  - Simulate upgrades and disaster scenarios
+  - Contribute new test patterns/utilities upstream
+
+## 8. Milestones & Phased Rollout
+- **Phase 1:** Integrate governance, multi-sig, and expand test coverage (1-2 months)
+- **Phase 2:** Implement Oracle/off-chain automation and advanced smart contracts (2-3 months)
+- **Phase 3:** Add XCM/interoperability, monitoring, and disaster recovery (2-3 months)
+- **Phase 4:** Security audit, mainnet genesis, and production launch (1-2 months)
+
+**Dependencies:**
+- Upstream Substrate/ink! releases for new features
+- Community and open-source project contributions
+- Third-party audit scheduling
+
+**Integration & Testing Strategy:**
+- All new features are first deployed and tested on the local testnet
+- Automated CI/CD for build, test, and deploy
+- Regular testnet upgrades and simulated mainnet launches
+- Community feedback and bug bounties before mainnet
+
+---
+
+This roadmap ensures EchoChain will be production-ready, secure, and extensible, while contributing improvements and reusable components to the broader open-source ecosystem.

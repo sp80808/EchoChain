@@ -16,45 +16,48 @@ targets = ["x86_64-unknown-linux-gnu"]
 codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = ["derive"] }
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
 
-pallet-aura = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-pallet-balances = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-frame-support = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-pallet-grandpa = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-pallet-sudo = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-frame-system = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
+pallet-aura = { default-features = false, version = "28.0.0" }
+pallet-balances = { default-features = false, version = "28.0.0" }
+frame-support = { default-features = false, version = "28.0.0" }
+pallet-grandpa = { default-features = false, version = "28.0.0" }
+pallet-sudo = { default-features = false, version = "28.0.0" }
+frame-system = { default-features = false, version = "28.0.0" }
 
-pallet-timestamp = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-pallet-transaction-payment = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
+pallet-timestamp = { default-features = false, version = "28.0.0" }
+pallet-transaction-payment = { default-features = false, version = "28.0.0" }
 pallet-sample-registry = { version = "4.0.0-dev", default-features = false, path = "../pallets/sample-registry" }
+pallet-democracy = { default-features = false, version = "28.0.0" }
+pallet-collective = { default-features = false, version = "28.0.0" }
+pallet-treasury = { default-features = false, version = "28.0.0" }
 # pallet-proof-of-contribution = { version = "4.0.0-dev", default-features = false, path = "../pallets/proof-of-contribution" }
-frame-executive = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-sp-api = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-sp-block-builder = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-sp-consensus-aura = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-sp-consensus-grandpa = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-sp-core = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-sp-inherents = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-sp-offchain = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-sp-runtime = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-sp-session = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-sp-std = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-sp-storage = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-sp-transaction-pool = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-sp-version = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
+frame-executive = { default-features = false, version = "28.0.0" }
+sp-api = { default-features = false, version = "28.0.0" }
+sp-block-builder = { default-features = false, version = "28.0.0" }
+sp-consensus-aura = { default-features = false, version = "0.10.0" }
+sp-consensus-grandpa = { default-features = false, version = "0.10.0" }
+sp-core = { default-features = false, version = "28.0.0" }
+sp-inherents = { default-features = false, version = "28.0.0" }
+sp-offchain = { default-features = false, version = "28.0.0" }
+sp-runtime = { default-features = false, version = "28.0.0" }
+sp-session = { default-features = false, version = "28.0.0" }
+sp-std = { default-features = false, version = "28.0.0" }
+sp-storage = { default-features = false, version = "28.0.0" }
+sp-transaction-pool = { default-features = false, version = "28.0.0" }
+sp-version = { default-features = false, version = "28.0.0" }
 
 # Used for the node template's RPCs
-frame-system-rpc-runtime-api = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
-pallet-transaction-payment-rpc-runtime-api = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0" }
+frame-system-rpc-runtime-api = { default-features = false, version = "28.0.0" }
+pallet-transaction-payment-rpc-runtime-api = { default-features = false, version = "28.0.0" }
 
 # Used for runtime benchmarking
-frame-benchmarking = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0", optional = true }
-frame-system-benchmarking = { default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0", optional = true }
+frame-benchmarking = { default-features = false, version = "28.0.0", optional = true }
+frame-system-benchmarking = { default-features = false, version = "28.0.0", optional = true }
 
 # Local Dependencies
 pallet-template = { version = "4.0.0-dev", default-features = false, path = "../pallets/template" }
 
 [build-dependencies]
-substrate-wasm-builder = { git = "https://github.com/paritytech/substrate.git", tag = "v3.0.0", optional = true }
+substrate-wasm-builder = { version = "0.10.0", optional = true }
 
 [features]
 default = [ "std" ]
@@ -73,6 +76,10 @@ std = [
 	"pallet-grandpa/std",
 	"pallet-sudo/std",
 	"pallet-template/std",
+	"pallet-democracy/std",
+	"pallet-collective/std",
+	"pallet-treasury/std",
+	
 	"pallet-timestamp/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
 	"pallet-transaction-payment/std",

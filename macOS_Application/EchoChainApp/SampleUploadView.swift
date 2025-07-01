@@ -16,6 +16,8 @@ struct SampleUploadView: View {
     @State private var errorMessage: String = ""
     @State private var isContributionSubmitting = false
 
+    private let maxFileSize: Int = 100 * 1024 * 1024 // 100 MB
+
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Text("Upload New Music Sample")
@@ -58,12 +60,15 @@ struct SampleUploadView: View {
                 ) { result in
                     do {
                         let fileURL = try result.get().first
-                        selectedFile = fileURL
+                        if let url = fileURL {
+                            try validateFile(url)
+                            selectedFile = url
+                        }
                         // TODO: Properly handle security-scoped bookmarks for persistent access if needed.
                         // fileURL.startAccessingSecurityScopedResource() and fileURL.stopAccessingSecurityScopedResource()
                         print("Selected file: \(fileURL?.lastPathComponent ?? "N/A")")
                     } catch {
-                        errorMessage = "Failed to select file: \(error.localizedDescription)"
+                        errorMessage = error.localizedDescription
                         showingErrorAlert = true
                     }
                 }
@@ -128,6 +133,31 @@ struct SampleUploadView: View {
         }
     }
 
+    private func validateFile(_ fileURL: URL) throws {
+        guard fileURL.startAccessingSecurityScopedResource() else {
+            throw SampleUploadError.fileAccessDenied
+        }
+        defer { fileURL.stopAccessingSecurityScopedResource() }
+
+        guard fileURL.isFileURL else {
+            throw SampleUploadError.invalidFileType("Selected item is not a file.")
+        }
+
+        guard let fileType = fileURL.contentType, fileType.conforms(to: .audio) else {
+            throw SampleUploadError.invalidFileType("Only audio files are allowed.")
+        }
+
+        let fileAttributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+        guard let fileSize = fileAttributes[.size] as? Int else {
+            throw SampleUploadError.fileSizeError("Could not determine file size.")
+        }
+
+        guard fileSize <= maxFileSize else {
+            throw SampleUploadError.fileSizeError("File size exceeds the maximum allowed (
+\(maxFileSize / 1024 / 1024) MB).")
+        }
+    }
+
     private func uploadSample() async {
         guard let fileURL = selectedFile, !sampleTitle.isEmpty, !artistName.isEmpty else {
             errorMessage = "Please fill all fields and select a file."
@@ -137,7 +167,7 @@ struct SampleUploadView: View {
 
         isUploading = true
         do {
-            // For security-scoped bookmarks, ensure access is started before using the fileURL
+            // Validation already done in validateFile, but re-access for upload
             let accessed = fileURL.startAccessingSecurityScopedResource()
             defer {
                 if accessed {
@@ -180,6 +210,23 @@ struct SampleUploadView: View {
             showingErrorAlert = true
         }
         isUploading = false
+    }
+}
+
+enum SampleUploadError: Error, LocalizedError {
+    case fileAccessDenied
+    case invalidFileType(String)
+    case fileSizeError(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .fileAccessDenied:
+            return "Access to the selected file was denied."
+        case .invalidFileType(let message):
+            return "Invalid file type: \(message)"
+        case .fileSizeError(let message):
+            return "File size error: \(message)"
+        }
     }
 }
 

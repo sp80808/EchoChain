@@ -1,15 +1,12 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { AppDataSource } from "./data-source";
+import { User } from "./entity/User";
+import { ApiError } from "./errors";
+import logger from './logger';
 
-// In-memory user database (replace with a real database in production)
-interface User {
-  id: number;
-  username: string;
-  password: string; // Hashed password
-}
-
-const users: User[] = [];
+const userRepository = AppDataSource.getRepository(User);
 
 // JWT Secret Key (should be stored securely in environment variables in production)
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey';
@@ -29,34 +26,35 @@ export const registerUser = async (req: Request, res: Response) => {
 
   // Input Validation
   if (!username || !password) {
-    res.status(400).json({ message: 'Username and password are required.' });
-    return;
+    throw new ApiError('Username and password are required.', 400);
   }
 
   if (username.length < 3) {
-    res.status(400).json({ message: 'Username must be at least 3 characters long.' });
-    return;
+    throw new ApiError('Username must be at least 3 characters long.', 400);
   }
 
   if (password.length < 6) {
-    res.status(400).json({ message: 'Password must be at least 6 characters long.' });
-    return;
-  }
-
-  // Check if user already exists
-  if (users.find(user => user.username === username)) {
-    res.status(409).json({ message: 'User already exists.' }); // Use 409 Conflict for existing resource
-    return;
+    throw new ApiError('Password must be at least 6 characters long.', 400);
   }
 
   try {
+    // Check if user already exists
+    const existingUser = await userRepository.findOneBy({ username });
+    if (existingUser) {
+      throw new ApiError('User already exists.', 409);
+    }
+
     const hashedPassword = await hashPassword(password);
-    const newUser = { id: users.length + 1, username, password: hashedPassword };
-    users.push(newUser);
+    const newUser = userRepository.create({ username, password: hashedPassword });
+    await userRepository.save(newUser);
     res.status(201).json({ message: 'User registered successfully', user: { id: newUser.id, username: newUser.username } });
   } catch (error) {
-    console.error('Registration error:', error); // Log the error for debugging
-    res.status(500).json({ message: 'An unexpected error occurred during registration.' }); // Generic error message
+    logger.error('Registration error:', error); // Log the error for debugging
+    if (error instanceof ApiError) {
+        res.status(error.statusCode).json({ message: error.message });
+    } else {
+        res.status(500).json({ message: 'An unexpected error occurred during registration.' }); // Generic error message
+    }
   }
 };
 
@@ -65,21 +63,18 @@ export const loginUser = async (req: Request, res: Response) => {
 
   // Input Validation
   if (!username || !password) {
-    res.status(400).json({ message: 'Username and password are required.' });
-    return;
-  }
-
-  const user = users.find(u => u.username === username);
-  if (!user) {
-    res.status(401).json({ message: 'Invalid credentials.' }); // Use 401 Unauthorized for login failures
-    return;
+    throw new ApiError('Username and password are required.', 400);
   }
 
   try {
+    const user = await userRepository.findOneBy({ username });
+    if (!user) {
+      throw new ApiError('Invalid credentials.', 401);
+    }
+
     const isMatch = await comparePassword(password, user.password);
     if (!isMatch) {
-      res.status(401).json({ message: 'Invalid credentials.' }); // Use 401 Unauthorized for login failures
-      return;
+      throw new ApiError('Invalid credentials.', 401);
     }
 
     // Generate JWT token
@@ -87,7 +82,11 @@ export const loginUser = async (req: Request, res: Response) => {
 
     res.status(200).json({ message: 'Logged in successfully', token });
   } catch (error) {
-    console.error('Login error:', error); // Log the error for debugging
-    res.status(500).json({ message: 'An unexpected error occurred during login.' }); // Generic error message
+    logger.error('Login error:', error); // Log the error for debugging
+    if (error instanceof ApiError) {
+        res.status(error.statusCode).json({ message: error.message });
+    } else {
+        res.status(500).json({ message: 'An unexpected error occurred during login.' }); // Generic error message
+    }
   }
 };

@@ -70,6 +70,7 @@ class RealP2PClient: P2PClientProtocol {
             } catch {
                 retryCount += 1
                 if retryCount >= maxRetries {
+                    try await Task.sleep(nanoseconds: 1_000_000_000) // Wait 1 second before retrying
                     throw error
                 }
             }
@@ -163,26 +164,37 @@ class RealP2PClient: P2PClientProtocol {
             throw P2PClientError.downloadFailed(downloadResponse["message"] as? String ?? "Unknown error initiating download")
         }
         
-        print("RealP2PClient: Download initiated for \(contentId). Waiting for completion...")
+        print("RealP2PClient: Download initiated for \(contentId). Polling for completion...")
         
-        // TODO: Replace this simulation with actual polling or a callback mechanism from the Python node
-        // to confirm download completion and get the actual downloaded file path. The current implementation
-        // assumes the file is immediately available after the simulated delay.
-        try await Task.sleep(nanoseconds: 5_000_000_000) // Simulate download time
-
-        // Construct the expected download path based on p2p_node.py's logic.
-        // TODO: The Python node should ideally return the actual path of the downloaded file.
-        let tempDirectory = FileManager.default.temporaryDirectory
-        let fileName = "downloaded_sample_\(contentId).mp3" // Assuming .mp3 for samples
-        let downloadedFileURL = tempDirectory.appendingPathComponent(fileName)
+        // Poll for download status until complete
+        var downloadStatus: String = "pending"
+        var downloadedFilePath: String? = nil
+        let maxPollAttempts = 60 // Poll for up to 60 seconds
+        var attempt = 0
         
-        // For demonstration, ensure a dummy file exists at this path
-        if !FileManager.default.fileExists(atPath: downloadedFileURL.path) {
-            let dummyContent = "This is a simulated downloaded audio file content for \(contentId)."
-            try dummyContent.write(to: downloadedFileURL, atomically: true, encoding: .utf8)
+        while downloadStatus != "completed" && attempt < maxPollAttempts {
+            try await Task.sleep(nanoseconds: 1_000_000_000) // Poll every 1 second
+            attempt += 1
+            
+            let statusResponse = try await sendLocalCommand(commandType: "local_get_download_status", payload: ["content_hash": contentId])
+            
+            if let status = statusResponse["status"] as? String, status == "success",
+               let currentDownloadStatus = statusResponse["download_status"] as? String {
+                downloadStatus = currentDownloadStatus
+                downloadedFilePath = statusResponse["local_path"] as? String
+                print("Download status for \(contentId): \(downloadStatus)")
+            } else {
+                print("Failed to get download status for \(contentId): \(statusResponse["message"] as? String ?? "Unknown error")")
+            }
         }
-
-        let newDownloadedFile = P2PFile(id: UUID(), contentId: contentId, fileName: fileName, localPath: downloadedFileURL.path, status: .downloaded)
+        
+        guard downloadStatus == "completed", let finalPath = downloadedFilePath else {
+            throw P2PClientError.downloadFailed("Download for \(contentId) did not complete in time or failed.")
+        }
+        
+        let downloadedFileURL = URL(fileURLWithPath: finalPath)
+        
+        let newDownloadedFile = P2PFile(id: UUID(), contentId: contentId, fileName: downloadedFileURL.lastPathComponent, localPath: downloadedFileURL.path, status: .downloaded)
         self.downloadedFiles.append(newDownloadedFile)
         // Increment totalBytesDownloaded
         if let fileSize = try? FileManager.default.attributesOfItem(atPath: downloadedFileURL.path)[.size] as? UInt64 {
@@ -288,123 +300,5 @@ struct P2PFileMetadata: Identifiable, Codable { // Added Codable for potential f
         self.artist = artist
         self.duration = duration
         self.blockchainHash = blockchainHash
-    }
-}
-
-// Swift P2P Client for EchoChain Python P2P Node
-import Foundation
-import Network
-
-class P2PClient {
-    let host: NWEndpoint.Host
-    let port: NWEndpoint.Port
-
-    init(host: String = "127.0.0.1", port: UInt16 = 8002) {
-        self.host = NWEndpoint.Host(host)
-        self.port = NWEndpoint.Port(rawValue: port)!
-    }
-
-    private func sendCommand(commandType: String, payload: [String: Any], completion: @escaping (Result<[String: Any], Error>) -> Void) {
-        let connection = NWConnection(host: host, port: port, using: .tcp)
-        connection.stateUpdateHandler = { state in
-            if case .failed(let error) = state {
-                completion(.failure(error))
-            }
-        }
-        connection.start(queue: .global())
-        var message = [String: Any]()
-        message["type"] = commandType
-        message["payload"] = payload
-        guard let data = try? JSONSerialization.data(withJSONObject: message) else {
-            completion(.failure(NSError(domain: "P2P", code: 1, userInfo: [NSLocalizedDescriptionKey: "JSON encode error"])))
-            return
-        }
-        connection.send(content: data, completion: .contentProcessed({ error in
-            if let error = error {
-                completion(.failure(error))
-                connection.cancel()
-                return
-            }
-            connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { data, _, _, error in
-                if let error = error {
-                    completion(.failure(error))
-                } else if let data = data, let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    completion(.success(dict))
-                } else {
-                    completion(.failure(NSError(domain: "P2P", code: 2, userInfo: [NSLocalizedDescriptionKey: "No data received"])))
-                }
-                connection.cancel()
-            }
-        }))
-    }
-
-    func addFileAndAnnounce(filepath: String, completion: @escaping (Result<String, Error>) -> Void) {
-        sendCommand(commandType: "local_add_file", payload: ["filepath": filepath]) { result in
-            switch result {
-            case .success(let resp):
-                if let status = resp["status"] as? String, status == "success", let fileHash = resp["file_hash"] as? String {
-                    self.sendCommand(commandType: "local_announce_content", payload: ["content_hash": fileHash]) { announceResult in
-                        switch announceResult {
-                        case .success(let announceResp):
-                            if let status = announceResp["status"] as? String, status == "success" {
-                                completion(.success(fileHash))
-                            } else {
-                                completion(.failure(NSError(domain: "P2P", code: 3, userInfo: [NSLocalizedDescriptionKey: announceResp["message"] as? String ?? "Unknown error"])))
-                            }
-                        case .failure(let error):
-                            completion(.failure(error))
-                        }
-                    }
-                } else {
-                    completion(.failure(NSError(domain: "P2P", code: 4, userInfo: [NSLocalizedDescriptionKey: resp["message"] as? String ?? "Unknown error"])))
-                }
-            case .failure(let error):
-                completion(.failure(error))
-            }
-        }
-    }
-
-    func discoverContentPeers(contentHash: String, completion: @escaping (Result<[String], Error>) -> Void) {
-        sendCommand(commandType: "local_request_content_info", payload: ["content_hash": contentHash]) { result in
-            switch result {
-            case .success(let resp):
-                if let status = resp["status"] as? String, status == "success", let peers = resp["peers"] as? [String] {
-                    completion(.success(peers))
-                } else {
-                    completion(.failure(NSError(domain: "P2P", code: 5, userInfo: [NSLocalizedDescriptionKey: resp["message"] as? String ?? "Unknown error"])))
-                }
-            case .failure(let error):
-                completion(.failure(error))
-            }
-        }
-    }
-
-    func requestFileDownload(contentHash: String, completion: @escaping (Result<Bool, Error>) -> Void) {
-        sendCommand(commandType: "local_request_file", payload: ["content_hash": contentHash]) { result in
-            switch result {
-            case .success(let resp):
-                if let status = resp["status"] as? String, status == "success" {
-                    completion(.success(true))
-                } else {
-                    completion(.failure(NSError(domain: "P2P", code: 6, userInfo: [NSLocalizedDescriptionKey: resp["message"] as? String ?? "Unknown error"])))
-                }
-            case .failure(let error):
-                completion(.failure(error))
-            }
-        }
-    }
-}
-
-// Example usage:
-let client = P2PClient()
-client.addFileAndAnnounce(filepath: "/path/to/file.wav") { result in
-    switch result {
-    case .success(let fileHash):
-        print("File added and announced with hash: \(fileHash)")
-        client.discoverContentPeers(contentHash: fileHash) { peersResult in
-            print("Peers:", peersResult)
-        }
-    case .failure(let error):
-        print("Error:", error)
     }
 }

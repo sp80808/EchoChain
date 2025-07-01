@@ -1,0 +1,217 @@
+asyncapi: 2.6.0
+info:
+  title: EchoChain Event API
+  version: 1.0.0
+  description: Event-driven interfaces for EchoChain components
+
+servers:
+  production:
+    url: wss://events.echochain.example.com
+    protocol: wss
+    description: Production WebSocket endpoint
+  development:
+    url: ws://localhost:3001
+    protocol: ws
+    description: Local development endpoint
+
+channels:
+  blockchain.events:
+    description: Blockchain-related events
+    subscribe:
+      message:
+        oneOf:
+          - $ref: '#/components/messages/BlockCreated'
+          - $ref: '#/components/messages/TransactionProcessed'
+          - $ref: '#/components/messages/RewardDistributed'
+
+  p2p.events:
+    description: P2P network events
+    subscribe:
+      message:
+        oneOf:
+          - $ref: '#/components/messages/FileTransferStarted'
+          - $ref: '#/components/messages/FileTransferCompleted'
+          - $ref: '#/components/messages/PeerConnected'
+
+  backend.events:
+    description: Backend service events
+    subscribe:
+      message:
+        oneOf:
+          - $ref: '#/components/messages/UserRegistered'
+          - $ref: '#/components/messages/CopyrightCheckResult'
+
+components:
+  messages:
+    BlockCreated:
+      name: BlockCreated
+      summary: New block created event
+      payload:
+        $ref: '#/components/schemas/BlockEvent'
+    
+    TransactionProcessed:
+      name: TransactionProcessed
+      summary: Transaction processed event
+      payload:
+        $ref: '#/components/schemas/TransactionEvent'
+    
+    RewardDistributed:
+      name: RewardDistributed
+      summary: Reward distribution event
+      payload:
+        $ref: '#/components/schemas/RewardEvent'
+    
+    FileTransferStarted:
+      name: FileTransferStarted
+      summary: P2P file transfer started
+      payload:
+        $ref: '#/components/schemas/FileTransferEvent'
+    
+    FileTransferCompleted:
+      name: FileTransferCompleted
+      summary: P2P file transfer completed
+      payload:
+        $ref: '#/components/schemas/FileTransferCompleteEvent'
+    
+    PeerConnected:
+      name: PeerConnected
+      summary: New peer connected
+      payload:
+        $ref: '#/components/schemas/PeerEvent'
+    
+    UserRegistered:
+      name: UserRegistered
+      summary: New user registration
+      payload:
+        $ref: '#/components/schemas/UserEvent'
+    
+    CopyrightCheckResult:
+      name: CopyrightCheckResult
+      summary: Copyright verification result
+      payload:
+        $ref: '#/components/schemas/CopyrightEvent'
+
+  schemas:
+    BlockEvent:
+      type: object
+      properties:
+        blockNumber:
+          type: integer
+          minimum: 0
+        blockHash:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        transactions:
+          type: array
+          items:
+            type: string
+    
+    TransactionEvent:
+      type: object
+      required: [txHash, type, status]
+      properties:
+        txHash:
+          type: string
+        type:
+          type: string
+          enum: [CONTENT_REGISTER, TOKEN_TRANSFER, REWARD_CLAIM]
+        status:
+          type: string
+          enum: [PENDING, SUCCESS, FAILED]
+        from:
+          type: string
+        to:
+          type: string
+        metadata:
+          type: object
+    
+    RewardEvent:
+      type: object
+      required: [epoch, totalReward, recipients]
+      properties:
+        epoch:
+          type: integer
+        totalReward:
+          type: string
+        recipients:
+          type: array
+          items:
+            $ref: '#/components/schemas/RewardRecipient'
+    
+    RewardRecipient:
+      type: object
+      required: [address, amount]
+      properties:
+        address:
+          type: string
+        amount:
+          type: string
+    
+    FileTransferEvent:
+      type: object
+      required: [fileId, sender, receiver]
+      properties:
+        fileId:
+          type: string
+        sender:
+          type: string
+        receiver:
+          type: string
+        size:
+          type: integer
+        chunkSize:
+          type: integer
+    
+    FileTransferCompleteEvent:
+      type: object
+      required: [fileId, success]
+      properties:
+        fileId:
+          type: string
+        success:
+          type: boolean
+        hash:
+          type: string
+        duration:
+          type: number
+    
+    PeerEvent:
+      type: object
+      required: [peerId, direction]
+      properties:
+        peerId:
+          type: string
+        direction:
+          type: string
+          enum: [INBOUND, OUTBOUND]
+        address:
+          type: string
+    
+    UserEvent:
+      type: object
+      required: [userId, walletAddress]
+      properties:
+        userId:
+          type: string
+        walletAddress:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    
+    CopyrightEvent:
+      type: object
+      required: [fileId, isOriginal]
+      properties:
+        fileId:
+          type: string
+        isOriginal:
+          type: boolean
+        matches:
+          type: array
+          items:
+            type: string
+        score:
+          type: number

@@ -1,11 +1,13 @@
 import SwiftUI
+import SubstrateKeychain
+import LocalAuthentication
 
 struct WalletView: View {
     @StateObject private var blockchainClient = RealBlockchainClient()
-    @StateObject private var secureStorage = SecureStorage()
-    @State private var walletAddress: String = "Loading..."
     @State private var showingImportAlert = false
-    @State private var importPrivateKeyInput: String = ""
+    @State private var biometricsEnabled = false
+    @State private var isAuthenticating = false
+    @State private var importMnemonicInput: String = "" // Changed to mnemonic input
     @State private var showingErrorAlert = false
     @State private var errorMessage: String = ""
     @State private var showingSendView = false
@@ -25,7 +27,6 @@ struct WalletView: View {
                 Text("Balance:")
                     .font(.title2)
                 Spacer()
-                // TODO: Ensure balance is fetched and displayed in real-time from the blockchain.
                 Text("\(blockchainClient.balance, specifier: "%.4f") ECHO")
                     .font(.title2)
                     .foregroundColor(.green)
@@ -36,12 +37,21 @@ struct WalletView: View {
                 Text("Address:")
                     .font(.title2)
                 Spacer()
-                // TODO: Display the actual wallet address derived from the blockchain client.
-                Text(walletAddress)
+                Text(blockchainClient.walletAddress) // Directly use blockchainClient.walletAddress
                     .font(.title3)
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .foregroundColor(.gray)
+            }
+            .padding(.horizontal)
+            
+            HStack {
+                Text("Node Connection:")
+                    .font(.title2)
+                Spacer()
+                Text(blockchainClient.isConnected ? "Connected" : "Disconnected")
+                    .font(.title3)
+                    .foregroundColor(blockchainClient.isConnected ? .green : .red)
             }
             .padding(.horizontal)
 
@@ -53,8 +63,12 @@ struct WalletView: View {
 
             Button(action: {
                 Task {
+                    isBlockchainActionLoading = true
+                    defer { isBlockchainActionLoading = false }
                     do {
                         try await blockchainClient.createWallet()
+                        errorMessage = "New wallet created successfully!"
+                        showingErrorAlert = true
                     } catch {
                         errorMessage = error.localizedDescription
                         showingErrorAlert = true
@@ -82,17 +96,21 @@ struct WalletView: View {
                     .cornerRadius(10)
             }
             .alert("Import Wallet", isPresented: $showingImportAlert) {
-                TextField("Private Key (Hex or Base64)", text: $importPrivateKeyInput)
+                TextField("Mnemonic Phrase (12 or 24 words)", text: $importMnemonicInput)
                 Button("Import") {
                     Task {
+                        isBlockchainActionLoading = true
+                        defer { isBlockchainActionLoading = false }
                         do {
-                            guard let privateKeyData = Data(hex: importPrivateKeyInput) ?? Data(base64Encoded: importPrivateKeyInput) else {
-                                errorMessage = "Invalid private key format. Please use Hex or Base64."
+                            guard !importMnemonicInput.isEmpty else {
+                                errorMessage = "Mnemonic phrase cannot be empty."
                                 showingErrorAlert = true
                                 return
                             }
-                            try await blockchainClient.importWallet(privateKeyData: privateKeyData)
-                            importPrivateKeyInput = "" // Clear input
+                            try await blockchainClient.importWallet(mnemonic: importMnemonicInput)
+                            importMnemonicInput = "" // Clear input
+                            errorMessage = "Wallet imported successfully!"
+                            showingErrorAlert = true
                         } catch {
                             errorMessage = error.localizedDescription
                             showingErrorAlert = true
@@ -100,16 +118,20 @@ struct WalletView: View {
                     }
                 }
                 Button("Cancel", role: .cancel) {
-                    importPrivateKeyInput = ""
+                    importMnemonicInput = ""
                 }
             } message: {
-                Text("WARNING: Importing a private key directly is risky. Ensure you understand the security implications. Please enter your private key in Hex or Base64 format.")
+                Text("WARNING: Importing a mnemonic phrase directly is risky. Ensure you understand the security implications. Please enter your 12 or 24 word mnemonic phrase.")
             }
 
             Button(action: {
                 Task {
+                    isBlockchainActionLoading = true
+                    defer { isBlockchainActionLoading = false }
                     do {
                         try await blockchainClient.fetchBalance()
+                        errorMessage = "Balance refreshed."
+                        showingErrorAlert = true
                     } catch {
                         errorMessage = error.localizedDescription
                         showingErrorAlert = true
@@ -142,7 +164,7 @@ struct WalletView: View {
                         .font(.title)
                         .padding(.top)
                     
-                    TextField("Recipient Address", text: $sendAddress)
+                    TextField("Recipient Address (SS58)", text: $sendAddress)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .padding(.horizontal)
                     
@@ -165,6 +187,8 @@ struct WalletView: View {
                         
                         Button("Send") {
                             Task {
+                                isBlockchainActionLoading = true
+                                defer { isBlockchainActionLoading = false }
                                 do {
                                     guard let amount = Double(sendAmount), amount > 0 else {
                                         errorMessage = "Please enter a valid amount"
@@ -178,13 +202,15 @@ struct WalletView: View {
                                         return
                                     }
                                     
-                                    try await blockchainClient.sendTransaction(
+                                    let txHash = try await blockchainClient.sendTransaction(
                                         to: sendAddress,
                                         amount: amount
                                     )
                                     showingSendView = false
                                     sendAmount = ""
                                     sendAddress = ""
+                                    errorMessage = "Transaction sent! Tx Hash: \(txHash)"
+                                    showingErrorAlert = true
                                     try await blockchainClient.fetchBalance()
                                     try await blockchainClient.fetchTransactionHistory()
                                 } catch {
@@ -287,7 +313,7 @@ struct WalletView: View {
         .padding()
         .navigationTitle("Wallet")
         .onAppear {
-            walletAddress = blockchainClient.walletAddress
+            // Initial fetch when view appears
             Task {
                 do {
                     try await blockchainClient.fetchBalance()
@@ -298,8 +324,7 @@ struct WalletView: View {
                 }
             }
         }
-        .onChange(of: blockchainClient.walletAddress) { newAddress in
-            walletAddress = newAddress
+        .onChange(of: blockchainClient.walletAddress) { _ in
             // When wallet address changes (e.g., after create/import), refresh balance and history
             Task {
                 do {
@@ -311,5 +336,17 @@ struct WalletView: View {
                 }
             }
         }
+        .alert("Blockchain Action Status", isPresented: $showingErrorAlert) {
+            Button("OK") { }
+        } message: {
+            Text(errorMessage)
+        }
     }
 }
+
+private let itemFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .short
+    formatter.timeStyle = .short
+    return formatter
+}()

@@ -50,6 +50,12 @@ pub use sp_runtime::{Perbill, Permill};
 pub use pallet_template;
 /// Import the Proof-of-Contribution pallet.
 pub use pallet_proof_of_contribution;
+/// Import the Democracy pallet.
+pub use pallet_democracy;
+/// Import the Collective pallet.
+pub use pallet_collective;
+/// Import the Treasury pallet.
+pub use pallet_treasury;
 
 /// An index to a block.
 pub type BlockNumber = u32;

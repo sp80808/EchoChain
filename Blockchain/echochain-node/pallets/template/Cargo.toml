@@ -17,15 +17,15 @@ codec = { package = "parity-scale-codec", version = "3.6.1", default-features = 
 	"derive",
 ] }
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
-frame-benchmarking = { version = "4.0.0-dev", default-features = false, optional = true, path = "../../../substrate/frame/benchmarking" }
-frame-support = { version = "4.0.0-dev", default-features = false, path = "../../../substrate/frame/support" }
-frame-system = { version = "4.0.0-dev", default-features = false, path = "../../../substrate/frame/system" }
-sp-std = { version = "8.0.0", default-features = false, path = "../../../substrate/primitives/std" }
+frame-benchmarking = { default-features = false, optional = true, path = "../../../../polkadot-sdk/substrate/frame/benchmarking" }
+frame-support = { default-features = false, path = "../../../../polkadot-sdk/substrate/frame/support" }
+frame-system = { default-features = false, path = "../../../../polkadot-sdk/substrate/frame/system" }
+sp-std = { default-features = false, path = "../../../../polkadot-sdk/substrate/primitives/std" }
 
 [dev-dependencies]
-sp-core = { version = "21.0.0", path = "../../../substrate/primitives/core" }
-sp-io = { version = "23.0.0", path = "../../../substrate/primitives/io" }
-sp-runtime = { version = "24.0.0", path = "../../../substrate/primitives/runtime" }
+sp-core = { path = "../../../../polkadot-sdk/substrate/primitives/core" }
+sp-io = { path = "../../../../polkadot-sdk/substrate/primitives/io" }
+sp-runtime = { path = "../../../../polkadot-sdk/substrate/primitives/runtime" }
 
 [features]
 default = [ "std" ]

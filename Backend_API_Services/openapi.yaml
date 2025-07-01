@@ -1,0 +1,339 @@
+openapi: 3.0.0
+info:
+  title: Music Sample API
+  description: Provide secure, lightweight RESTful endpoints for user authentication, music sample registration and discovery, and copyright checking.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000/api
+  - url: https://api.example.com
+paths:
+  /register:
+    post:
+      operationId: registerUser
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  example: "john_doe"
+                password:
+                  type: string
+                  example: "securePassword123"
+              required:
+                - username
+                - password
+      responses:
+        "201":
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "409":
+          description: Duplicate user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /login:
+    post:
+      operationId: loginUser
+      summary: Authenticate a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  example: "john_doe"
+                password:
+                  type: string
+                  example: "securePassword123"
+              required:
+                - username
+                - password
+      responses:
+        "200":
+          description: User authenticated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /samples:
+    get:
+      operationId: listSamples
+      summary: List all music samples
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+            example: "guitar"
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+            example: "rock"
+        - name: bpm
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 120
+        - name: genre
+          in: query
+          required: false
+          schema:
+            type: string
+            example: "pop"
+        - name: instruments
+          in: query
+          required: false
+          schema:
+            type: string
+            example: "piano"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 10
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 0
+      responses:
+        "200":
+          description: A list of music samples
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Sample'
+    post:
+      operationId: registerSample
+      summary: Register a new music sample
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: string
+                  example: "sample123"
+                title:
+                  type: string
+                  example: "My First Sample"
+                artist:
+                  type: string
+                  example: "John Doe"
+                duration:
+                  type: integer
+                  example: 180
+                category:
+                  type: string
+                  example: "rock"
+                p2pContentId:
+                  type: string
+                  example: "p2p123"
+                price:
+                  type: number
+                  example: 9.99
+                ownerAddress:
+                  type: string
+                  example: "0x1234567890abcdef"
+                blockchainHash:
+                  type: string
+                  example: "0xabcdef1234567890"
+              required:
+                - id
+                - title
+                - artist
+                - duration
+                - category
+                - p2pContentId
+                - price
+                - ownerAddress
+                - blockchainHash
+      responses:
+        "201":
+          description: Sample registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sample'
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /copyright-check:
+    post:
+      operationId: checkCopyright
+      summary: Check an audio sample for copyright infringement
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sampleId:
+                  type: string
+                  example: "sample123"
+                userId:
+                  type: string
+                  example: "user123"
+                contentHash:
+                  type: string
+                  example: "0xabcdef1234567890"
+              required:
+                - sampleId
+                - userId
+                - contentHash
+      responses:
+        "200":
+          description: Copyright check result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  infringementStatus:
+                    type: string
+                    example: "none"
+                  details:
+                    type: string
+                    example: "No infringement detected."
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Copyright infringement detected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /health:
+    get:
+      operationId: healthCheck
+      summary: Check the health of the API
+      responses:
+        "200":
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        userId:
+          type: string
+          example: "user123"
+        username:
+          type: string
+          example: "john_doe"
+      description: A user registered in the system.
+    Sample:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "sample123"
+        title:
+          type: string
+          example: "My First Sample"
+        artist:
+          type: string
+          example: "John Doe"
+        duration:
+          type: integer
+          example: 180
+        category:
+          type: string
+          example: "rock"
+        p2pContentId:
+          type: string
+          example: "p2p123"
+        price:
+          type: number
+          example: 9.99
+        ownerAddress:
+          type: string
+          example: "0x1234567890abcdef"
+        blockchainHash:
+          type: string
+          example: "0xabcdef1234567890"
+      description: A music sample registered in the system.
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      description: Response containing authentication token.
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "An error occurred."
+      description: Error response schema.
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+security:
+  - BearerAuth: []
+tags:
+  - name: Authentication
+    description: User authentication endpoints
+  - name: Samples
+    description: Music sample management endpoints
+  - name: Copyright
+    description: Copyright checking endpoints
+  - name: Health
+    description: Health check endpoints

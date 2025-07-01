@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct ContentView: View {
+    @StateObject private var p2pClient = RealP2PClient()
+
     var body: some View {
         NavigationView {
             VStack {
@@ -9,6 +11,14 @@ struct ContentView: View {
                     .padding()
 
                 Spacer()
+
+                HStack {
+                    Text("P2P Status:")
+                        .font(.headline)
+                    Text(p2pClient.isConnected ? "Connected" : "Disconnected")
+                        .foregroundColor(p2pClient.isConnected ? .green : .red)
+                }
+                .padding(.bottom, 10)
 
                 NavigationLink(destination: WalletView()) {
                     Text("Go to Wallet")
@@ -31,6 +41,15 @@ struct ContentView: View {
                 .padding(.bottom, 20)
             }
             .navigationTitle("EchoChain")
+            .onAppear {
+                Task {
+                    do {
+                        try await p2pClient.connect()
+                    } catch {
+                        print("Failed to connect to P2P client: \(error.localizedDescription)")
+                    }
+                }
+            }
         }
     }
 }

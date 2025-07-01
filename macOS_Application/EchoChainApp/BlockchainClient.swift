@@ -1,49 +1,27 @@
 import Foundation
 import Combine
-import Security
-import CryptoKit
+import Substrate
+import SubstrateRPC
+import SubstrateKeychain
 
 // Protocol to define the interface for blockchain interactions
 protocol BlockchainClientProtocol: ObservableObject {
     var balance: Double { get }
     var walletAddress: String { get }
     var transactionHistory: [Transaction] { get }
+    var isConnected: Bool { get }
 
     func createWallet() async throws
+    func importWallet(mnemonic: String) async throws
     func fetchBalance() async throws
     func fetchTransactionHistory() async throws
-    func signTransaction(from: String, to: String, amount: Double, data: String?) async throws -> String
-    func broadcastTransaction(signedTransaction: String) async throws -> String
-    @MainActor
-    func sendTransaction(to recipientAddress: String, amount: Double) async throws -> String {
-        guard let currentWalletAddress = self.walletAddress, !currentWalletAddress.isEmpty else {
-            throw BlockchainClientError.walletNotLoaded
-        }
-        guard let privateKey = self.privateKey else {
-            throw BlockchainClientError.walletNotLoaded
-        }
-
-        // TODO: Construct a proper extrinsic (transaction) for the Substrate chain.
-        // This is a complex step that typically requires a Substrate-specific encoding library
-        // or a deep understanding of SCALE encoding and the runtime's metadata.
-        // The extrinsic will include:
-        // 1. The `call` (e.g., `Balances.transfer` with recipient and amount).
-        // 2. The `signed extensions` (e.g., `Era`, `Nonce`, `Tip`, `AssetId`).
-        // 3. The `signature` generated using the private key.
-
-        // Placeholder for raw extrinsic bytes. In a real scenario, these would be generated
-        // by encoding the call and signed extensions according to SCALE.
-        let dummyExtrinsicData = "dummy_extrinsic_for_transfer_\(amount)_to_\(recipientAddress)".data(using: .utf8)!
-
-        // Sign the dummy extrinsic data
-        let signedExtrinsic = try await signTransaction(from: currentWalletAddress, to: recipientAddress, amount: amount, data: dummyExtrinsicData.base64EncodedString())
-
-        // Broadcast the signed extrinsic
-        let txHash = try await broadcastTransaction(signedTransaction: signedExtrinsic)
-        return txHash
-    }
+    func sendTransaction(to recipientAddress: String, amount: Double) async throws -> String
     func registerSampleMetadata(title: String, artist: String, p2pContentId: String, blockchainHash: String) async throws -> String
+    func purchaseSample(sampleId: String, price: Double, recipientAddress: String) async throws -> String
     func checkNodeConnection() async throws -> (chain: String, version: String)
+    func claimRewards() async throws -> String
+    func submitNetworkContribution(uploaded: UInt64, downloaded: UInt64) async throws -> String
+    func submitContentContribution(amount: UInt64) async throws -> String
 }
 
 // MARK: - Production Blockchain Client
@@ -52,233 +30,375 @@ class RealBlockchainClient: BlockchainClientProtocol {
     @Published var balance: Double = 0.0
     @Published var walletAddress: String = ""
     @Published var transactionHistory: [Transaction] = []
+    @Published var isConnected: Bool = false
 
-    private let nodeURL = URL(string: "http://localhost:9933")! // Substrate RPC HTTP port
+    private let nodeURL = URL(string: "ws://127.0.0.1:9945")! // Alice's WS port
     private let secureStorage = SecureStorage()
-
-    private var privateKey: Curve25519.Signing.PrivateKey? // Manages the private key for signing transactions.
+    
+    func isBiometricsEnabled() -> Bool {
+        return secureStorage.canEvaluatePolicy()
+    }
+    
+    func authenticateWithBiometrics(reason: String) async throws -> Bool {
+        let context = LAContext()
+        var error: NSError?
+        
+        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
+            throw BlockchainClientError.unsupportedOperation("Biometrics not available")
+        }
+        
+        return try await withCheckedThrowingContinuation { continuation in
+            context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics,
+                                 localizedReason: reason) { success, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: success)
+                }
+            }
+        }
+    }
+    private var api: Api<DynamicConfig>?
+    private var currentKeyPair: Sr25519KeyPair? // Manages the active keypair for signing transactions.
 
     init() {
-        // Attempt to load an existing wallet from SecureStorage on initialization.
-        do {
-            if let loadedPrivateKey = try secureStorage.getPrivateKey() {
-                self.privateKey = loadedPrivateKey
-                self.walletAddress = Self.deriveAddress(from: loadedPrivateKey.publicKey)
-                Task {
-                    await self.fetchBalance() // Fetch balance for the loaded wallet.
-                    await self.fetchTransactionHistory() // Fetch transaction history for the loaded wallet.
-                }
-            } else {
-                print("No wallet found in SecureStorage. User needs to create or import one.")
-            }
-        } catch {
-            print("Error loading private key from SecureStorage: \(error.localizedDescription)")
-            // TODO: Handle this error gracefully, perhaps by showing an alert to the user.
-        }
-
-        // Check node connection status.
         Task {
             do {
-                let (chain, version) = try await checkNodeConnection()
-                print("Connected to EchoChain node: Chain=\(chain), Version=\(version)")
+                // Initialize Substrate API
+                self.api = try await Api(rpc: JsonRpcClient(.ws(url: nodeURL)), config: .dynamicBlake2)
+                self.isConnected = true
+                print("Substrate API initialized and connected.")
+
+                // Attempt to load an existing wallet from SecureStorage on initialization.
+                if let mnemonic = try secureStorage.getMnemonic() {
+                    self.currentKeyPair = try Sr25519KeyPair(phrase: mnemonic)
+                    self.walletAddress = self.currentKeyPair?.ss58Address() ?? ""
+                    print("Wallet loaded from mnemonic: \(self.walletAddress)")
+                    await self.fetchBalance()
+                    await self.fetchTransactionHistory()
+                } else {
+                    print("No wallet mnemonic found in SecureStorage. User needs to create or import one.")
+                }
             } catch {
-                print("Failed to connect to EchoChain node: \(error.localizedDescription)")
-                // TODO: Handle node connection failure gracefully (e.g., show error to user).
+                print("Failed to initialize Substrate API or load wallet: \(error.localizedDescription)")
+                self.isConnected = false
+                // TODO: Handle this error gracefully, perhaps by showing an alert to the user.
             }
         }
     }
 
     @MainActor
     func checkNodeConnection() async throws -> (chain: String, version: String) {
-        // TODO: This is a basic check. Consider using a dedicated Substrate API client for more robust checks.
-        let chainRequest = JSONRPCRequest(method: "system_chain", params: [])
-        let chainName: String = try await sendRPC(request: chainRequest)
-
-        let versionRequest = JSONRPCRequest(method: "system_version", params: [])
-        let nodeVersion: String = try await sendRPC(request: versionRequest)
-
+        guard let api = self.api else { throw BlockchainClientError.nodeNotConnected }
+        
+        let chainName: String = try await api.rpc.call(method: "system_chain", params: Params())
+        let nodeVersion: String = try await api.rpc.call(method: "system_version", params: Params())
+        
         return (chainName, nodeVersion)
     }
 
     @MainActor
     func createWallet() async throws {
-        // Generate a Curve25519 keypair and store private key in Keychain
-        let newPrivateKey = try secureStorage.generateKeyPair()
-        self.privateKey = newPrivateKey
-        self.walletAddress = Self.deriveAddress(from: newPrivateKey.publicKey)
-        // TODO: After creating a new wallet, consider fetching initial balance and history.
+        let newMnemonic = try secureStorage.generateMnemonicAndStore()
+        self.currentKeyPair = try Sr25519KeyPair(phrase: newMnemonic)
+        self.walletAddress = self.currentKeyPair?.ss58Address() ?? ""
+        print("New wallet created: \(self.walletAddress)")
+        await self.fetchBalance()
+        await self.fetchTransactionHistory()
     }
 
-    func importWallet(privateKeyData: Data) async throws {
-        // Import a Curve25519 private key from data and store in Keychain
-        let importedPrivateKey = try Curve25519.Signing.PrivateKey(rawRepresentation: privateKeyData)
-        try secureStorage.savePrivateKey(importedPrivateKey)
-        self.privateKey = importedPrivateKey
-        self.walletAddress = Self.deriveAddress(from: importedPrivateKey.publicKey)
-        // TODO: After importing a wallet, consider fetching initial balance and history.
+    @MainActor
+    func importWallet(mnemonic: String) async throws {
+        try secureStorage.saveMnemonic(mnemonic)
+        self.currentKeyPair = try Sr25519KeyPair(phrase: mnemonic)
+        self.walletAddress = self.currentKeyPair?.ss58Address() ?? ""
+        print("Wallet imported: \(self.walletAddress)")
+        await self.fetchBalance()
+        await self.fetchTransactionHistory()
     }
 
     @MainActor
     func fetchBalance() async throws {
-        guard !walletAddress.isEmpty else { throw BlockchainClientError.walletNotLoaded }
-
-        // To fetch the actual balance from a Substrate node, we need to query the `system.account` storage map.
-        // This involves constructing the storage key for the account and then decoding the returned `AccountInfo`.
-        // The storage key is typically a Blake2b hash of the module name, storage item name, and the account ID.
-        // For a real implementation, you would use a Substrate-specific library to handle key encoding and data decoding.
-
-        // Placeholder for the storage key. In a real scenario, this would be derived from the walletAddress.
-        // Example: "0x" + blake2b_256("System") + blake2b_256("Account") + blake2b_256(walletAddress)
-        // The exact format depends on the runtime's metadata.
-        let accountStorageKey = "0x" + Data(walletAddress.utf8).sha256().hexEncodedString // This is a simplified placeholder
-
-        let params = [accountStorageKey]
-        let request = JSONRPCRequest(method: "state_getStorage", params: params)
-
-        // The result will be a hex-encoded string of the AccountInfo.
-        // You'll need to decode this hex string into the AccountInfo structure
-        // and then extract the `data.free` balance.
-        let hexEncodedAccountInfo: String? = try await sendRPC(request: request)
-
-        guard let hexInfo = hexEncodedAccountInfo, !hexInfo.isEmpty else {
-            // Account might not exist on chain yet, or has no balance
+        guard let api = self.api else { throw BlockchainClientError.nodeNotConnected }
+        guard let currentKeyPair = self.currentKeyPair else { throw BlockchainClientError.walletNotLoaded }
+        
+        let accountId = try currentKeyPair.account(in: api)
+        
+        // Fetch account info using the dynamic storage query
+        let accountInfo = try await api.query.dynamic(name: "Account", pallet: "System")
+            .value(accountId, type: AccountInfo.self)
+        
+        // Assuming AccountInfo has a `data` field with `free` balance
+        if let info = accountInfo {
+            // Substrate balances are typically represented as UInt128.
+            // Convert to Double for display, considering the chain's token decimals.
+            // For EchoChain, let's assume 12 decimals for now (common for Substrate).
+            let decimals: Double = 1_000_000_000_000 // 12 decimals
+            self.balance = Double(info.data.free) / decimals
+            print("Fetched balance for \(walletAddress): \(self.balance) ECHO")
+        } else {
             self.balance = 0.0
-            return
+            print("Account \(walletAddress) not found or has no balance.")
         }
-
-        // TODO: Decode the hexEncodedAccountInfo into a Substrate AccountInfo structure.
-        // This is a complex step that requires knowledge of the runtime's SCALE encoding.
-        // For now, we'll set a dummy balance.
-        self.balance = 123.45 // Dummy balance for demonstration
-        print("Fetched balance for \(walletAddress): \(self.balance) ECHO (Dummy)")
     }
 
     @MainActor
     func fetchTransactionHistory() async throws {
-        guard !walletAddress.isEmpty else { throw BlockchainClientError.walletNotLoaded }
-
-        // Fetching comprehensive transaction history directly from a Substrate node's RPC
-        // is complex and often inefficient for historical data. It typically involves:
-        // 1. Querying blocks for `system.ExtrinsicSuccess` or `balances.Transfer` events.
-        // 2. Decoding the event data to extract sender, recipient, amount, etc.
-        // 3. Iterating through a range of blocks, which can be very slow for a full history.
-
-        // For a production application, it's highly recommended to use an off-chain indexer
-        // (e.g., Subsquid, SubQuery, or a custom solution) that processes chain data
-        // and provides an easily queryable API for transaction history.
-
-        // Placeholder for a more realistic RPC call for recent transactions (if available).
-        // The `chain_getTransactions` method is a placeholder and might not exist on a real node.
-        let params = [walletAddress]
-        let request = JSONRPCRequest(method: "chain_getRecentTransactions", params: params) // Placeholder RPC method
-        let result: [[String: Any]] = try await sendRPC(request: request)
-
-        self.transactionHistory = result.compactMap { dict in
-            // TODO: Parse actual transaction data from the RPC response.
-            // This will depend on the structure returned by the chosen RPC method or indexer.
-            guard let idStr = dict["id"] as? String,
-                  let id = UUID(uuidString: idStr),
-                  let typeStr = dict["type"] as? String,
-                  let type = TransactionType(rawValue: typeStr),
-                  let amount = dict["amount"] as? Double,
-                  let from = dict["from"] as? String,
-                  let to = dict["to"] as? String,
-                  let dateInt = dict["date"] as? TimeInterval else { return nil }
-            return Transaction(id: id, type: type, amount: amount, from: from, to: to, date: Date(timeIntervalSince1970: dateInt))
+        guard let api = self.api else { throw BlockchainClientError.nodeNotConnected }
+        guard let currentKeyPair = self.currentKeyPair else { throw BlockchainClientError.walletNotLoaded }
+        
+        // Fetching transaction history directly from a Substrate node's RPC is complex.
+        // It's highly recommended to use an off-chain indexer (e.g., SubQuery) for this.
+        // For demonstration, we'll fetch recent blocks and try to find relevant events.
+        
+        // This is a simplified approach and might not be efficient for a full history.
+        // A real implementation would involve subscribing to events or using an indexer.
+        
+        let latestBlock = try await api.rpc.chain.getBlock()
+        guard let blockHash = latestBlock?.block.hash else {
+            print("Could not get latest block hash.")
+            self.transactionHistory = []
+            return
         }
-        print("Fetched \(self.transactionHistory.count) transactions for \(walletAddress) (Dummy)")
+        
+        let events = try await api.query.system.events(at: blockHash)
+        
+        var newTransactions: [Transaction] = []
+        for eventRecord in events {
+            // Example: Filter for Balances.Transfer events
+            if let transferEvent = eventRecord.event.as(Balances.TransferEvent.self) {
+                let fromAddress = try transferEvent.from.ss58Address(in: api)
+                let toAddress = try transferEvent.to.ss58Address(in: api)
+                let amount = Double(transferEvent.amount) / 1_000_000_000_000 // Assuming 12 decimals
+                
+                let type: TransactionType = (fromAddress == currentKeyPair.ss58Address()) ? .sent : .received
+                
+                newTransactions.append(Transaction(
+                    id: UUID(),
+                    type: type,
+                    amount: amount,
+                    from: fromAddress,
+                    to: toAddress,
+                    date: Date() // Placeholder date, ideally from block timestamp
+                ))
+            } else if let rewardEvent = eventRecord.event.as(ContentRewards.RewardDistributedEvent.self) {
+                let userAddress = try rewardEvent.user.ss58Address(in: api)
+                let amount = Double(rewardEvent.amount) / 1_000_000_000_000
+                
+                newTransactions.append(Transaction(
+                    id: UUID(),
+                    type: .contentReward,
+                    amount: amount,
+                    from: "Content Reward Pool",
+                    to: userAddress,
+                    date: Date()
+                ))
+            } else if let networkRewardEvent = eventRecord.event.as(NetworkRewards.NetworkRewardDistributedEvent.self) {
+                let userAddress = try networkRewardEvent.user.ss58Address(in: api)
+                let amount = Double(networkRewardEvent.amount) / 1_000_000_000_000
+                
+                newTransactions.append(Transaction(
+                    id: UUID(),
+                    type: .networkReward,
+                    amount: amount,
+                    from: "Network Reward Pool",
+                    to: userAddress,
+                    date: Date()
+                ))
+            } else if let reportEvent = eventRecord.event.as(NetworkRewards.ReportSubmittedEvent.self) {
+                let userAddress = try reportEvent.user.ss58Address(in: api)
+                
+                newTransactions.append(Transaction(
+                    id: UUID(),
+                    type: .reportSubmitted,
+                    amount: 0,
+                    from: userAddress,
+                    to: "Network Rewards Pallet",
+                    date: Date()
+                ))
+            } else if let sampleEvent = eventRecord.event.as(SampleRegistry.SampleRegisteredEvent.self) {
+                let ownerAddress = try sampleEvent.owner.ss58Address(in: api)
+                
+                newTransactions.append(Transaction(
+                    id: UUID(),
+                    type: .sampleRegistration,
+                    amount: 0,
+                    from: ownerAddress,
+                    to: "Sample Registry Pallet",
+                    date: Date()
+                ))
+            }
+        }
+        
+        self.transactionHistory = newTransactions.sorted(by: { $0.date > $1.date })
+        print("Fetched \(self.transactionHistory.count) transactions for \(walletAddress)")
     }
 
     @MainActor
-    func signTransaction(from: String, to: String, amount: Double, data: String?) async throws -> String {
-        guard let privateKey = self.privateKey as? Curve25519.Signing.PrivateKey else {
-            throw BlockchainClientError.walletNotLoaded
-        }
-        let transactionDetails = "\(from)\(to)\(amount)\(data ?? "")"
-        guard let dataToSign = transactionDetails.data(using: .utf8) else {
-            throw BlockchainClientError.transactionFailed("Failed to encode transaction data for signing.")
-        }
-        let signature = try privateKey.signature(for: dataToSign)
-        return signature.base64EncodedString()
-    }
-
-    @MainActor
-    func broadcastTransaction(signedTransaction: String) async throws -> String {
-        let params = [signedTransaction]
-        let request = JSONRPCRequest(method: "author_submitExtrinsic", params: params)
-        let result: String = try await sendRPC(request: request)
-        return result
+    func sendTransaction(to recipientAddress: String, amount: Double) async throws -> String {
+        guard let api = self.api else { throw BlockchainClientError.nodeNotConnected }
+        guard let currentKeyPair = self.currentKeyPair else { throw BlockchainClientError.walletNotLoaded }
+        
+        let recipientAccountId = try api.runtime.address(ss58: recipientAddress)
+        
+        // Convert Double amount to UInt128 considering chain decimals
+        let decimals: UInt128 = 1_000_000_000_000 // 12 decimals
+        let rawAmount = UInt128(amount * Double(decimals))
+        
+        // Create the transfer call
+        let call = AnyCall(name: "transfer",
+                           pallet: "Balances",
+                           params: ["dest": recipientAccountId, "value": rawAmount])
+        
+        // Create the extrinsic (transaction)
+        let tx = try await api.tx.new(call)
+        
+        // Sign and send the extrinsic
+        let events = try await tx.signSendAndWatch(signer: currentKeyPair)
+            .waitForFinalized()
+            .success()
+        
+        print("Transaction successful. Events: \(try events.parsed())")
+        return events.extrinsicHash.toHex()
     }
 
     @MainActor
     func registerSampleMetadata(title: String, artist: String, p2pContentId: String, blockchainHash: String) async throws -> String {
-        let params = [title, artist, p2pContentId, blockchainHash]
-        let request = JSONRPCRequest(method: "custom_registerSample", params: params)
-        let result: String = try await sendRPC(request: request)
-        return result
+        guard let api = self.api else { throw BlockchainClientError.nodeNotConnected }
+        guard let currentKeyPair = self.currentKeyPair else { throw BlockchainClientError.walletNotLoaded }
+        
+        // Assuming 'sampleRegistry' pallet has a 'registerSample' extrinsic
+        let call = AnyCall(name: "registerSample",
+                           pallet: "SampleRegistry", // Pallet name from your runtime
+                           params: [
+                            "title": title,
+                            "artist": artist,
+                            "p2p_content_id": p2pContentId,
+                            "blockchain_hash": blockchainHash
+                           ])
+        
+        let tx = try await api.tx.new(call)
+        
+        let events = try await tx.signSendAndWatch(signer: currentKeyPair)
+            .waitForFinalized()
+            .success()
+        
+        print("Sample metadata registered. Events: \(try events.parsed())")
+        return events.extrinsicHash.toHex()
     }
 
-    // MARK: - JSON-RPC Networking
-    struct JSONRPCRequest: Encodable {
-        let jsonrpc = "2.0"
-        let method: String
-        let params: [AnyEncodable]
-        let id = 1
-        init(method: String, params: [Any]) {
-            self.method = method
-            self.params = params.map { AnyEncodable($0) }
-        }
+    @MainActor
+    func purchaseSample(sampleId: String, price: Double, recipientAddress: String) async throws -> String {
+        guard let api = self.api else { throw BlockchainClientError.nodeNotConnected }
+        guard let currentKeyPair = self.currentKeyPair else { throw BlockchainClientError.walletNotLoaded }
+
+        let recipientAccountId = try api.runtime.address(ss58: recipientAddress)
+
+        // Convert Double price to UInt128 considering chain decimals
+        let decimals: UInt128 = 1_000_000_000_000 // 12 decimals
+        let rawPrice = UInt128(price * Double(decimals))
+
+        // Assuming 'SampleMarket' pallet has a 'buySample' extrinsic
+        let call = AnyCall(name: "buySample",
+                           pallet: "SampleMarket", // Pallet name from your runtime
+                           params: [
+                            "sample_id": sampleId,
+                            "price": rawPrice,
+                            "recipient": recipientAccountId
+                           ])
+
+        let tx = try await api.tx.new(call)
+
+        let events = try await tx.signSendAndWatch(signer: currentKeyPair)
+            .waitForFinalized()
+            .success()
+
+        print("Sample purchased. Events: \(try events.parsed())")
+        return events.extrinsicHash.toHex()
     }
 
-    struct AnyEncodable: Encodable {
-        private let _encode: (Encoder) throws -> Void
-        init<T: Encodable>(_ wrapped: T) {
-            _encode = wrapped.encode
-        }
-        func encode(to encoder: Encoder) throws { try _encode(encoder) }
+    @MainActor
+    func claimRewards() async throws -> String {
+        guard let api = self.api else { throw BlockchainClientError.nodeNotConnected }
+        guard let currentKeyPair = self.currentKeyPair else { throw BlockchainClientError.walletNotLoaded }
+
+        // Assuming 'ContentRewards' pallet has a 'claimRewards' extrinsic
+        let call = AnyCall(name: "claimRewards", pallet: "ContentRewards", params: [String: Any]())
+
+        let tx = try await api.tx.new(call)
+
+        let events = try await tx.signSendAndWatch(signer: currentKeyPair)
+            .waitForFinalized()
+            .success()
+
+        print("Rewards claimed. Events: \(try events.parsed())")
+        return events.extrinsicHash.toHex()
     }
 
-    private func sendRPC<T: Decodable>(request: JSONRPCRequest) async throws -> T {
-        // TODO: This RPC client is a placeholder. Replace with a robust blockchain SDK's RPC client.
-        var urlRequest = URLRequest(url: nodeURL)
-        urlRequest.httpMethod = "POST"
-        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.httpBody = try JSONEncoder().encode(request)
-        let (data, response) = try await URLSession.shared.data(for: urlRequest)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw BlockchainClientError.transactionFailed("Invalid response from node")
-        }
-        let rpcResponse = try JSONDecoder().decode(JSONRPCResponse<T>.self, from: data)
-        if let error = rpcResponse.error {
-            throw BlockchainClientError.transactionFailed(error.message)
-        }
-        guard let result = rpcResponse.result else {
-            throw BlockchainClientError.transactionFailed("No result in response")
-        }
-        return result
+    @MainActor
+    func submitNetworkContribution(uploaded: UInt64, downloaded: UInt64) async throws -> String {
+        guard let api = self.api else { throw BlockchainClientError.nodeNotConnected }
+        guard let currentKeyPair = self.currentKeyPair else { throw BlockchainClientError.walletNotLoaded }
+
+        // Assuming 'NetworkRewards' pallet has a 'submitReport' extrinsic
+        let call = AnyCall(name: "submitReport",
+                           pallet: "NetworkRewards",
+                           params: [
+                            "bytes_uploaded": uploaded,
+                            "bytes_downloaded": downloaded
+                           ])
+
+        let tx = try await api.tx.new(call)
+
+        let events = try await tx.signSendAndWatch(signer: currentKeyPair)
+            .waitForFinalized()
+            .success()
+
+        print("Network contribution submitted. Events: \(try events.parsed())")
+        return events.extrinsicHash.toHex()
     }
 
-    struct JSONRPCResponse<T: Decodable>: Decodable {
-        let result: T?
-        let error: RPCError?
-        struct RPCError: Decodable {
-            let code: Int
-            let message: String
-        }
-    }
+    @MainActor
+    func submitContentContribution(amount: UInt64) async throws -> String {
+        guard let api = self.api else { throw BlockchainClientError.nodeNotConnected }
+        guard let currentKeyPair = self.currentKeyPair else { throw BlockchainClientError.walletNotLoaded }
 
-    // MARK: - Address Derivation
-    static func deriveAddress(from publicKey: SecKey) -> String {
-        // TODO: Implement real address derivation from SecKey (public key)
-        // This is a placeholder. A real implementation would involve hashing the public key
-        // and encoding it according to the blockchain's address format.
-        let keyData = SecKeyCopyExternalRepresentation(publicKey, nil)! as Data
-        return "echo_pub_" + keyData.base64EncodedString().prefix(10)
+        // Assuming 'ContentRewards' pallet has a 'submitContribution' extrinsic
+        let call = AnyCall(name: "submitContribution",
+                           pallet: "ContentRewards",
+                           params: [
+                            "amount": amount
+                           ])
+
+        let tx = try await api.tx.new(call)
+
+        let events = try await tx.signSendAndWatch(signer: currentKeyPair)
+            .waitForFinalized()
+            .success()
+
+        print("Content contribution submitted. Events: \(try events.parsed())")
+        return events.extrinsicHash.toHex()
     }
 }
 
+// Helper struct for AccountInfo decoding
+struct AccountInfo: Decodable {
+    let nonce: UInt32
+    let consumers: UInt32
+    let providers: UInt32
+    let sufficients: UInt32
+    let data: AccountData
+}
+
+struct AccountData: Decodable {
+    let free: UInt128
+    let reserved: UInt128
+    let miscFrozen: UInt128
+    let feeFrozen: UInt128
+}
+
 enum BlockchainClientError: Error, LocalizedError {
-    case keyStorageFailed
+    case nodeNotConnected
     case walletNotLoaded
     case transactionFailed(String)
     case metadataRegistrationFailed(String)
@@ -286,8 +406,8 @@ enum BlockchainClientError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .keyStorageFailed:
-            return "Failed to securely store wallet key."
+        case .nodeNotConnected:
+            return "Not connected to a blockchain node."
         case .walletNotLoaded:
             return "Wallet not loaded. Please create or import a wallet first."
         case .transactionFailed(let message):
@@ -315,4 +435,8 @@ enum TransactionType: String {
     case creation
     case `import`
     case sampleRegistration
+    case contentReward
+    case networkReward
+    case reportSubmitted
 }
+

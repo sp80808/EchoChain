@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+package echochain.p2p;
+
+option go_package = "github.com/echochain/p2p/proto";
+
+// FileTransfer service handles P2P file transfers
+service FileTransfer {
+  // Initiate a file transfer session
+  rpc InitiateTransfer (TransferRequest) returns (TransferResponse);
+  
+  // Stream file chunks during transfer
+  rpc StreamChunks (stream Chunk) returns (stream ChunkAck);
+  
+  // Complete a transfer session
+  rpc CompleteTransfer (TransferComplete) returns (TransferCompleteAck);
+}
+
+// File metadata
+message FileMetadata {
+  string file_id = 1; // Unique file identifier
+  string name = 2;
+  string content_type = 3;
+  uint64 size = 4;
+  string hash = 5; // Content hash (SHA-256)
+  map<string, string> attributes = 6; // Additional metadata
+}
+
+// Transfer request message
+message TransferRequest {
+  FileMetadata metadata = 1;
+  string sender_id = 2;
+  repeated string receiver_ids = 3; // For multicast transfers
+  uint32 chunk_size = 4; // Bytes per chunk
+}
+
+// Transfer response
+message TransferResponse {
+  bool accepted = 1;
+  string message = 2;
+  string session_id = 3;
+}
+
+// Data chunk
+message Chunk {
+  string session_id = 1;
+  uint32 sequence = 2;
+  bytes data = 3;
+  bool is_last = 4;
+}
+
+// Chunk acknowledgment
+message ChunkAck {
+  string session_id = 1;
+  uint32 sequence = 2;
+  bool success = 3;
+}
+
+// Transfer completion
+message TransferComplete {
+  string session_id = 1;
+  FileMetadata metadata = 2;
+  string final_hash = 3; // Verification hash
+}
+
+// Transfer completion acknowledgment
+message TransferCompleteAck {
+  string session_id = 1;
+  bool verified = 2;
+}
+
+// Discovery service for finding peers with files
+service Discovery {
+  // Find peers that have a specific file
+  rpc FindPeers (FileQuery) returns (PeerList);
+}
+
+message FileQuery {
+  string file_id = 1;
+  string hash = 2;
+}
+
+message PeerList {
+  repeated Peer peers = 1;
+}
+
+message Peer {
+  string id = 1;
+  string address = 2;
+  uint32 port = 3;
+}

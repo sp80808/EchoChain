@@ -1,0 +1,42 @@
+version: '3.8'
+services:
+  alice:
+    image: echochain-node:latest
+    build:
+      context: ./node
+      dockerfile: ../Dockerfile
+    command: ["/bin/sh", "-c", "./target/release/echochain-node --chain local-testnet --base-path /data --name Alice --port 30333 --rpc-port 9944 --ws-port 9945 --validator --alice --rpc-cors=all --rpc-methods=Unsafe --ws-external --rpc-external"]
+    volumes:
+      - alice-data:/data
+    ports:
+      - "30333:30333"
+      - "9944:9944"
+      - "9945:9945"
+  bob:
+    image: echochain-node:latest
+    build:
+      context: ./node
+      dockerfile: ../Dockerfile
+    command: ["/bin/sh", "-c", "./target/release/echochain-node --chain local-testnet --base-path /data --name Bob --port 30334 --rpc-port 9946 --ws-port 9947 --validator --bob --rpc-cors=all --rpc-methods=Unsafe --ws-external --rpc-external"]
+    volumes:
+      - bob-data:/data
+    ports:
+      - "30334:30334"
+      - "9946:9946"
+      - "9947:9947"
+  charlie:
+    image: echochain-node:latest
+    build:
+      context: ./node
+      dockerfile: ../Dockerfile
+    command: ["/bin/sh", "-c", "./target/release/echochain-node --chain local-testnet --base-path /data --name Charlie --port 30335 --rpc-port 9948 --ws-port 9949 --validator --charlie --rpc-cors=all --rpc-methods=Unsafe --ws-external --rpc-external"]
+    volumes:
+      - charlie-data:/data
+    ports:
+      - "30335:30335"
+      - "9948:9948"
+      - "9949:9949"
+volumes:
+  alice-data:
+  bob-data:
+  charlie-data: 

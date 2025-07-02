@@ -118,14 +118,7 @@ struct SampleBrowserView: View {
         }
     }
 
-    var filteredSamples: [Sample] {
-        samples.filter { sample in
-            (searchQuery.isEmpty || sample.title.localizedCaseInsensitiveContains(searchQuery)) &&
-            (filterCategory.isEmpty || sample.category == filterCategory) &&
-            (filterBPM.isEmpty || String(sample.bpm) == filterBPM) &&
-            (filterKey.isEmpty || sample.key == filterKey)
-        }
-    }
+    
 
     private func fetchSamples() async {
         isLoadingSamples = true

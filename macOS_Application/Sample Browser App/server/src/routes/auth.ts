@@ -69,7 +69,7 @@ router.get('/me', auth, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('-passwordHash');
     const balance = await getWalletBalanceFromBlockchain(user.walletAddress);
-    res.json({ ...user.toObject(), balance });
+    res.json({ ...user.toObject(), balance, referralCode: user.referralCode });
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server error');

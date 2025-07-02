@@ -144,7 +144,7 @@ router.post('/', [auth, upload.single('sample')], async (req, res) => {
 // Get all approved samples
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { category, tags, bpm, key, type, search } = req.query;
+    const { category, tags, bpm, key, type, search, sortBy, order } = req.query;
     const query: any = { status: 'approved' };
 
     if (category) {
@@ -152,7 +152,9 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     }
 
     if (tags) {
-      query.tags = { $in: (tags as string).split(',').map(tag => tag.trim()) };
+      // Allow multiple tags separated by comma
+      const tagArray = (tags as string).split(',').map(tag => tag.trim());
+      query.tags = { $in: tagArray };
     }
 
     if (bpm) {
@@ -182,8 +184,31 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       ];
     }
 
-    // Fetch samples from MongoDB based on query
-    const samplesFromDb = await Sample.find(query).populate('creator', 'email walletAddress');
+    let sortOptions: { [key: string]: 1 | -1 } = { createdAt: -1 }; // Default sort by newest
+
+    if (sortBy) {
+      switch (sortBy) {
+        case 'downloads':
+          sortOptions = { usageCount: order === 'asc' ? 1 : -1 };
+          break;
+        case 'uploadDate':
+          sortOptions = { createdAt: order === 'asc' ? 1 : -1 };
+          break;
+        // Add other sort options as needed (e.g., 'title', 'artist')
+        case 'title':
+          sortOptions = { title: order === 'asc' ? 1 : -1 };
+          break;
+        case 'artist':
+          sortOptions = { 'creator.email': order === 'asc' ? 1 : -1 }; // Assuming creator.email is the artist name
+          break;
+        default:
+          // Fallback to default sort if sortBy is not recognized
+          break;
+      }
+    }
+
+    // Fetch samples from MongoDB based on query and sort options
+    const samplesFromDb = await Sample.find(query).populate('creator', 'email walletAddress').sort(sortOptions);
 
     // For approved samples, simulate fetching metadata from blockchain
     const finalSamples = await Promise.all(samplesFromDb.map(async (sample) => {

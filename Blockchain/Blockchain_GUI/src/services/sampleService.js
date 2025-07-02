@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { ApiPromise, WsProvider } from '@polkadot/api';
-import { Keyring } from '@polkadot/keyring';
+import { web3FromSource } from '@polkadot/extension-dapp';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3000/api';
 const WS_PROVIDER = process.env.REACT_APP_WS_PROVIDER || 'ws://localhost:9944';
@@ -16,18 +16,15 @@ export async function registerSample(sample, token, account) {
     try {
       const provider = new WsProvider(WS_PROVIDER);
       const api = await ApiPromise.create({ provider });
-      const keyring = new Keyring({ type: 'sr25519' });
-      const signer = keyring.addFromJson(account.json, account.password);
-      
-      // Assuming a pallet named 'sampleRegistry' with a function 'registerSample'
+      // Use the extension's signer
+      const injector = await web3FromSource(account.meta.source);
       const tx = api.tx.sampleRegistry.registerSample(
         sample.id,
         sample.blockchainHash,
         sample.title,
         sample.artist
       );
-      
-      await tx.signAndSend(signer, ({ status }) => {
+      await tx.signAndSend(account.address, { signer: injector.signer }, ({ status }) => {
         if (status.isInBlock) {
           console.log(`Sample ${sample.id} registered on-chain in block ${status.asInBlock}`);
         }

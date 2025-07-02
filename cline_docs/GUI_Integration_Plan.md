@@ -17,9 +17,19 @@ This document outlines the integration plan for the Echochain Blockchain Managem
 - **UserSamples.js**: Displays a list of samples registered by the user, fetched from the blockchain.
   - **Recent Update**: Newly created component to show user's registered samples, integrated into the dashboard.
 
+### 4. Commission Management
+- **CommissionPost.js**: A component to allow users to post commissions for audio pieces with a specified bounty in ECHO tokens.
+  - **Planned Update**: To be developed for integration into the GUI.
+- **CommissionSubmissions.js**: A component to view and submit audio samples for open commissions.
+  - **Planned Update**: To be developed for integration into the GUI.
+- **CommissionSelection.js**: A component for requesters to select a submission and award the bounty.
+  - **Planned Update**: To be developed for integration into the GUI.
+
 ### 4. Services
 - **sampleService.js**: Handles API calls and blockchain interactions for sample registration and retrieval.
   - **Recent Update**: Added `getUserSamples` function for fetching user samples from the blockchain and implemented transaction signing logic for on-chain registration using Polkadot.js API.
+- **commissionService.js**: Will handle blockchain interactions for posting commissions, submitting to commissions, and selecting submissions for bounties.
+  - **Planned Update**: To be developed to support commission-related functionalities.
 
 ### 5. Main Application
 - **App.js**: The main entry point of the GUI, integrating all components into a cohesive dashboard with navigation.
@@ -32,6 +42,7 @@ This document outlines the integration plan for the Echochain Blockchain Managem
 
 ## Next Steps
 - **Testing**: Conduct thorough testing of the GUI components, especially focusing on blockchain interactions and transaction signing.
+- **Commission Integration**: Develop and integrate GUI components for commission posting, submission, and selection to fully utilize the marketplace pallet's new features.
 - **User Feedback**: Gather user feedback on the GUI usability and functionality to iterate on design and features.
 - **Documentation**: Continuously update this integration plan and other relevant documentation to reflect ongoing development and changes.
 

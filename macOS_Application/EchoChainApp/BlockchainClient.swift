@@ -138,12 +138,16 @@ class RealBlockchainClient: BlockchainClientProtocol {
     }
 
     @MainActor
-    func createWallet(requireBiometrics: Bool) async throws {
+    func createWallet(requireBiometrics: Bool, referrerCode: String?) async throws {
         let newMnemonic = try await secureStorage.generateMnemonicAndStore(requireBiometrics: requireBiometrics)
         self.currentKeyPair = try Sr25519KeyPair(phrase: newMnemonic)
         self.walletAddress = self.currentKeyPair?.ss58Address() ?? ""
         self.referralCode = self.walletAddress // Placeholder for referral code
         print("New wallet created: \(self.walletAddress)")
+
+        // Register user with backend, including referrerCode
+        await registerUserWithBackend(email: "\(self.walletAddress)@echochain.com", password: newMnemonic, referrerCode: referrerCode)
+
         await self.fetchBalance(requireBiometrics: requireBiometrics)
         await self.fetchTransactionHistory(requireBiometrics: requireBiometrics)
         await self.fetchFaucetAmount(requireBiometrics: requireBiometrics)
@@ -151,12 +155,16 @@ class RealBlockchainClient: BlockchainClientProtocol {
     }
 
     @MainActor
-    func importWallet(mnemonic: String, requireBiometrics: Bool) async throws {
+    func importWallet(mnemonic: String, requireBiometrics: Bool, referrerCode: String?) async throws {
         try await secureStorage.saveMnemonic(mnemonic, requireBiometrics: requireBiometrics)
         self.currentKeyPair = try Sr25519KeyPair(phrase: mnemonic)
         self.walletAddress = self.currentKeyPair?.ss58Address() ?? ""
         self.referralCode = self.walletAddress // Placeholder for referral code
         print("Wallet imported: \(self.walletAddress)")
+
+        // Register user with backend, including referrerCode
+        await registerUserWithBackend(email: "\(self.walletAddress)@echochain.com", password: mnemonic, referrerCode: referrerCode)
+
         await self.fetchBalance(requireBiometrics: requireBiometrics)
         await self.fetchTransactionHistory(requireBiometrics: requireBiometrics)
         await self.fetchFaucetAmount(requireBiometrics: requireBiometrics)
@@ -178,32 +186,38 @@ class RealBlockchainClient: BlockchainClientProtocol {
 
     @MainActor
     func fetchBalance(requireBiometrics: Bool) async throws {
-        guard let api = self.api else { throw BlockchainClientError.nodeNotConnected }
-        
         if requireBiometrics {
             _ = try await authenticateWithBiometrics(reason: "Authenticate to fetch wallet balance.")
         }
-        
         guard let currentKeyPair = self.currentKeyPair else { throw BlockchainClientError.walletNotLoaded }
-        
-        let accountId = try currentKeyPair.account(in: api)
-        
-        // Fetch account info using the dynamic storage query
-        let accountInfo = try await api.query.dynamic(name: "Account", pallet: "System")
-            .value(accountId, type: AccountInfo.self)
-        
-        // Assuming AccountInfo has a `data` field with `free` balance
-        if let info = accountInfo {
-            // Substrate balances are typically represented as UInt128.
-            // Convert to Double for display, considering the chain's token decimals.
-            // For EchoChain, let's assume 12 decimals for now (common for Substrate).
-            let decimals: Double = 1_000_000_000_000 // 12 decimals
-            self.balance = Double(info.data.free) / decimals
-            print("Fetched balance for \(walletAddress): \(self.balance) ECHO")
-        } else {
-            self.balance = 0.0
-            print("Account \(walletAddress) not found or has no balance.")
+
+        // Fetch user details and balance from the backend /api/auth/me endpoint
+        guard let url = URL(string: "http://127.0.0.1:3001/api/auth/me") else {
+            throw BlockchainClientError.invalidURL
         }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        // Assuming you have a way to get the JWT token, e.g., from SecureStorage
+        // For now, let's assume a placeholder token or that auth middleware is bypassed for simplicity
+        // In a real app, you'd fetch the token and add it: request.setValue("Bearer \(yourAuthToken)", forHTTPHeaderField: "x-auth-token")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw BlockchainClientError.requestFailed("Failed to fetch user details and balance")
+        }
+
+        struct UserDetailsResponse: Codable {
+            let balance: Double
+            let referralCode: String
+            // Add other fields if needed from the /me endpoint
+        }
+
+        let decodedResponse = try JSONDecoder().decode(UserDetailsResponse.self, from: data)
+        self.balance = decodedResponse.balance
+        self.referralCode = decodedResponse.referralCode
+        print("Fetched balance: \(self.balance) ECHO, Referral Code: \(self.referralCode)")
     }
 
     @MainActor

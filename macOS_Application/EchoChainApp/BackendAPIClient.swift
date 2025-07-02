@@ -7,7 +7,7 @@ protocol BackendAPIClientProtocol {
 class RealBackendAPIClient: BackendAPIClientProtocol {
     private let baseURL = URL(string: "http://127.0.0.1:3000/api")!
 
-    func fetchSamples(query: String?, category: String?, bpm: String?, key: String?) async throws -> [Sample] {
+    func fetchSamples(query: String?, category: String?, bpm: String?, key: String?, tags: String?, sortBy: String?, order: String?) async throws -> [Sample] {
         var urlComponents = URLComponents(url: baseURL.appendingPathComponent("samples"), resolvingAgainstBaseURL: false)!
         var queryItems: [URLQueryItem] = []
 
@@ -25,6 +25,18 @@ class RealBackendAPIClient: BackendAPIClientProtocol {
 
         if let key = key, !key.isEmpty {
             queryItems.append(URLQueryItem(name: "key", value: key))
+        }
+
+        if let tags = tags, !tags.isEmpty {
+            queryItems.append(URLQueryItem(name: "tags", value: tags))
+        }
+
+        if let sortBy = sortBy, !sortBy.isEmpty {
+            queryItems.append(URLQueryItem(name: "sortBy", value: sortBy))
+        }
+
+        if let order = order, !order.isEmpty {
+            queryItems.append(URLQueryItem(name: "order", value: order))
         }
 
         urlComponents.queryItems = queryItems

@@ -218,9 +218,10 @@ struct WalletView: View {
                     isBlockchainActionLoading = true
                     defer { isBlockchainActionLoading = false }
                     do {
-                        try await blockchainClient.createWallet(requireBiometrics: biometricsEnabled)
+                        try await blockchainClient.createWallet(requireBiometrics: biometricsEnabled, referrerCode: referrerCodeInput)
                         errorMessage = "New wallet created successfully!"
                         showingErrorAlert = true
+                        referrerCodeInput = "" // Clear input after use
                     } catch {
                         errorMessage = error.localizedDescription
                         showingErrorAlert = true
@@ -236,6 +237,11 @@ struct WalletView: View {
                     .cornerRadius(10)
             }
 
+            TextField("Referrer Code (Optional)", text: $referrerCodeInput)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .padding(.horizontal)
+                .padding(.bottom, 5)
+
             Button(action: {
                 showingImportAlert = true
             }) {
@@ -249,6 +255,7 @@ struct WalletView: View {
             }
             .alert("Import Wallet", isPresented: $showingImportAlert) {
                 TextField("Mnemonic Phrase (12 or 24 words)", text: $importMnemonicInput)
+                TextField("Referrer Code (Optional)", text: $referrerCodeInput) // Add referrer code to import alert
                 Button("Import") {
                     Task {
                         isBlockchainActionLoading = true
@@ -259,8 +266,9 @@ struct WalletView: View {
                                 showingErrorAlert = true
                                 return
                             }
-                            try await blockchainClient.importWallet(mnemonic: importMnemonicInput, requireBiometrics: biometricsEnabled)
+                            try await blockchainClient.importWallet(mnemonic: importMnemonicInput, requireBiometrics: biometricsEnabled, referrerCode: referrerCodeInput)
                             importMnemonicInput = "" // Clear input
+                            referrerCodeInput = "" // Clear input after use
                             errorMessage = "Wallet imported successfully!"
                             showingErrorAlert = true
                         } catch {
@@ -271,6 +279,7 @@ struct WalletView: View {
                 }
                 Button("Cancel", role: .cancel) {
                     importMnemonicInput = ""
+                    referrerCodeInput = ""
                 }
             } message: {
                 Text("WARNING: Importing a mnemonic phrase directly is risky. Ensure you understand the security implications. Please enter your 12 or 24 word mnemonic phrase.")

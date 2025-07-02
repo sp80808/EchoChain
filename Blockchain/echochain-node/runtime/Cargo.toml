@@ -29,6 +29,9 @@ frame-support = { default-features = false, version = "28.0.0" } # FRAME support
 pallet-grandpa = { default-features = false, version = "28.0.0" } # Finality gadget
 pallet-sudo = { default-features = false, version = "28.0.0" } # Root admin access
 frame-system = { default-features = false, version = "28.0.0" } # Core system
+pallet-contracts = { default-features = false, version = "28.0.0" } # Smart contract execution
+pallet-xcm = { default-features = false, version = "28.0.0" } # XCM support
+xcm-builder = { default-features = false, version = "28.0.0" } # XCM configuration helpers
 
 # Application-Specific Pallets
 pallet-timestamp = { default-features = false, version = "28.0.0" } # Block time tracking
@@ -132,6 +135,9 @@ std = [
 	
 	# Build tool
 	"substrate-wasm-builder",
+	"pallet-contracts/std",
+	"pallet-xcm/std",
+	"xcm-builder/std",
 ]
 
 # Runtime benchmarking support

@@ -70,6 +70,11 @@ pub use pallet_collective;
 pub use pallet_treasury;
 pub use pallet_scheduler;
 
+/// Import XCM and Contracts
+use pallet_contracts;
+use pallet_xcm;
+use xcm_builder;
+
 /// An index to a block.
 pub type BlockNumber = u32;
 
@@ -429,6 +434,11 @@ impl pallet_echochain_marketplace::Config for Runtime {
 	type WeightInfo = pallet_echochain_marketplace::weights::SubstrateWeight<Runtime>;
 }
 
+impl pallet_royalty_distribution::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+}
+
 parameter_types! {
 	pub const CouncilMotionDuration: BlockNumber = 5 * DAYS;
 	pub const CouncilMaxProposals: u32 = 100;
@@ -534,6 +544,60 @@ impl pallet_scheduler::Config for Runtime {
 	type Preimages = Preimage;
 }
 
+// --- XCM Minimal Config ---
+parameter_types! {
+    pub const XcmMaxAssets: u32 = 2;
+}
+impl pallet_xcm::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type SendXcmOrigin = frame_support::traits::NeverEnsureOrigin<u128>;
+    type XcmExecuteFilter = frame_support::traits::Everything;
+    type XcmExecutor = xcm_builder::XcmExecutor<Runtime>;
+    type XcmTeleportFilter = frame_support::traits::Nothing;
+    type XcmReserveTransferFilter = frame_support::traits::Nothing;
+    type Weigher = xcm_builder::FixedWeightBounds<ConstU64<1>, Call, ConstU64<1>>;
+    type LocationInverter = xcm_builder::LocationInverter<ConstU32<0>>;
+    type Origin = RuntimeOrigin;
+    type Call = RuntimeCall;
+    type AssetTransactor = (); // No asset transfer for now
+    type IsReserve = frame_support::traits::NeverEnsureOrigin<u128>;
+    type IsTeleporter = frame_support::traits::NeverEnsureOrigin<u128>;
+    type UniversalLocation = xcm::v1::MultiLocation;
+    type Barrier = xcm_builder::AllowTopLevelPaidExecutionFrom<frame_support::traits::Everything>;
+    type MaxAssetsForTransfer = XcmMaxAssets;
+    type WeightInfo = ();
+    type AdvertisedXcmVersion = xcm::Version::V3;
+}
+
+// --- Contracts Minimal Config ---
+parameter_types! {
+    pub const DepositPerByte: u64 = 1_000;
+    pub const DepositPerItem: u64 = 10_000;
+    pub const RentFraction: Perbill = Perbill::from_percent(1);
+    pub const SurchargeReward: u64 = 150_000;
+    pub const MaxCodeSize: u32 = 2 * 1024 * 1024; // 2 MB
+    pub const MaxStorageKeyLen: u32 = 128;
+    pub const MaxDebugBufferLen: u32 = 2 * 1024 * 1024; // 2 MB
+}
+impl pallet_contracts::Config for Runtime {
+    type Time = Timestamp;
+    type Randomness = pallet_balances::Randomness;
+    type Currency = Balances;
+    type Event = RuntimeEvent;
+    type Call = RuntimeCall;
+    type CallFilter = frame_support::traits::Everything;
+    type DepositPerByte = DepositPerByte;
+    type DepositPerItem = DepositPerItem;
+    type RentFraction = RentFraction;
+    type SurchargeReward = SurchargeReward;
+    type MaxCodeSize = MaxCodeSize;
+    type MaxStorageKeyLen = MaxStorageKeyLen;
+    type MaxDebugBufferLen = MaxDebugBufferLen;
+    type WeightPrice = pallet_transaction_payment::Module<Runtime>;
+    type WeightInfo = pallet_contracts::weights::SubstrateWeight<Runtime>;
+    type ChainExtension = (); // No chain extension for now
+}
+
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
 	pub enum Runtime
@@ -558,6 +622,9 @@ construct_runtime!(
 		Scheduler: pallet_scheduler,
 		EchochainCompute: pallet_echochain_compute,
 		EchochainMarketplace: pallet_echochain_marketplace,
+		RoyaltyDistribution: pallet_royalty_distribution,
+		Contracts: pallet_contracts,
+		XcmPallet: pallet_xcm,
 	}
 );
 

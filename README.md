@@ -1,91 +1,35 @@
-# EchoChain Reward System Documentation
+# EchoChain Project Documentation
 
-## Architecture Overview
-```mermaid
-graph TD
-    A[Compute Pallet] -->|Metrics| D[EchoRewards]
-    B[Marketplace] -->|Job Completion| D
-    C[Proof-of-Contribution] -->|Base Rewards| D
-    D -->|Distributes| E[Processors]
-    D -->|Distributes| F[Creators]
-    D -->|Distributes| G[Storage Providers]
-```
+## Overview
+This repository contains the source code and documentation for EchoChain, a decentralized music sample marketplace. The project is divided into several main sub-directories:
 
-## Configuration
+*   **[Blockchain](./Blockchain/README.md)**: Custom EchoChain blockchain.
+*   **[Backend API Services](./Backend_API_Services/README.md)**: Lightweight backend APIs for authentication, copyright, and integrations.
+*   **[P2P File Sharing System](./P2P_File_Sharing_System/README.md)**: Decentralized peer-to-peer file sharing.
+*   **[macOS Application](./macOS_Application/README.md)**: Native macOS app for wallet, sample browsing, and P2P client.
+*   **[Landing Page](./LandingPage/README.md)**: Project landing page and macOS application UI.
+*   **[Sample Browser App](./Sample%20Browser%20App/README.md)**: Core sample browsing and management application.
 
-### Runtime Integration
-```rust
-impl echorewards::Config for Runtime {
-    type Currency = Balances;
-    type ComputePallet = Compute;
-    type MarketplacePallet = Marketplace;
-    type ContributionPallet = ProofOfContribution;
-    // ... other configs
-}
-```
+## Project Vision
+EchoChain is a decentralized, community-driven music sample sharing platform. It provides a modern alternative to services like Splice, enabling music producers to discover, share, and download high-quality, royalty-free audio samples. The ecosystem is powered by a purpose-built blockchain and its native cryptocurrency, the "Echo Token" (ECHO). The core philosophy is to directly reward creators for their contributions and minimize centralized infrastructure costs through a peer-to-peer file-sharing model.
 
-## Reward Types
+## Usage, Building, and Development
 
-1. **Compute Rewards**  
-   Based on processor metrics:
-   ```rust
-   fn calculate_reward(metrics: ProcessorMetrics) -> Balance {
-       // Custom reward logic
-   }
-   ```
+### How to Use EchoChain
+- EchoChain enables music producers to browse, share, and download audio samples in a decentralized, community-driven environment.
+- Users can interact with the platform via the macOS app, web sample browser, or API endpoints.
 
-2. **Marketplace Rewards**  
-   Job completion payouts:
-   ```rust
-   fn pay_reward(job_id, amount, recipient) -> Result<(), Error>
-   ```
+### Building and Running Components
+- **Blockchain:** See [Blockchain/README.md](./Blockchain/README.md) for instructions on building and running the custom EchoChain node.
+- **Backend API Services:** See [Backend_API_Services/README.md](./Backend_API_Services/README.md) for setup, environment configuration, and API usage.
+- **P2P File Sharing System:** See [P2P_File_Sharing_System/README.md](./P2P_File_Sharing_System/README.md) for running the decentralized file sharing node.
+- **macOS Application:** See [macOS_Application/README.md](./macOS_Application/README.md) for building and running the native app in Xcode.
+- **Sample Browser App:** See [Sample Browser App/README.md](./Sample%20Browser%20App/README.md) for web-based sample browsing and management.
 
-3. **Contribution Rewards**  
-   Periodic distributions:
-   ```rust
-   fn distribute_content_rewards()
-   fn distribute_network_rewards()  
-   ```
+### Contributing
+- Contributions are welcome! Please review the development plans and guidelines in each subproject's README.
+- Submit issues or pull requests for bug fixes, features, or documentation improvements.
 
-## Usage Examples
-
-### Compute Reward Claim
-```rust
-let reward = EchoRewards::claim_compute_reward(processor);
-```
-
-### Marketplace Payout
-```rust
-EchoRewards::pay_marketplace_reward(job_id, amount, creator);
-```
-
-### Contribution Reporting
-```rust
-ProofOfContribution::report_network_contribution(
-    origin, 
-    storage_bytes, 
-    bandwidth_bytes
-);
-```
-
-## Integration Guide
-
-1. Implement required traits:
-   ```rust
-   impl ComputeRewardDistributor for EchoRewards { ... }
-   impl RewardManager for EchoRewards { ... }
-   ```
-
-2. Add pallet to runtime:
-   ```rust
-   construct_runtime!{
-       // ...
-       EchoRewards: echorewards::{Pallet, Call, Storage, Event<T>},
-   }
-   ```
-
-3. Configure weights:
-   ```rust
-   impl echorewards::WeightInfo for RuntimeWeight {
-       fn claim_reward() -> Weight { ... }
-   }
+### Further Documentation
+- For detailed technical documentation and development plans, see [EchoChain_Documentation_and_Development_Plan.md](./EchoChain_Documentation_and_Development_Plan.md).
+- Each subproject contains its own README with component-specific instructions and details.

@@ -353,53 +353,61 @@ pub mod pallet {
 
             // Emit an event to signal the need for external data retrieval
             // An off-chain worker or oracle service should listen for this event and fetch the data
-            // TODO: Implement off-chain worker integration to handle data retrieval from the specified endpoint
-            Self::deposit_event(Event::ExternalDataRequested(task_id, endpoint));
+            Self::deposit_event(Event::ExternalDataRequested(task_id, endpoint.clone()));
+            
+            // Placeholder for off-chain worker integration
+            // In a full implementation, an off-chain worker would be triggered here to fetch data
+            // from the specified endpoint and submit it back to the pallet via a callback or extrinsic.
+            // For now, log the request as an event. Future development will include:
+            // - Integration with a service like Chainlink or Acurast for data retrieval
+            // - A callback mechanism to update the task with retrieved data
             Ok(())
         }
 
         /// Verify the result of a compute task using consensus
-                #[pallet::weight(10_000)]
-                pub fn verify_result(
-                    origin: OriginFor<T>,
-                    task_id: u32,
-                    results: Vec<T::Hash>
-                ) -> DispatchResult {
-                    let verifier = ensure_signed(origin)?;
-        
-                    let task = ComputeTasks::<T>::get(task_id).ok_or(Error::<T>::TaskNotFound)?;
-                    ensure!(
-                        task.status == TaskStatus::Completed,
-                        Error::<T>::TaskNotCompleted
-                    );
-        
-                    // Ensure that there are results to verify
-                    ensure!(!results.is_empty(), Error::<T>::NoResultsToVerify);
-        
-                    // Calculate the consensus result
-                    let consensus_result = Self::calculate_consensus(results.clone()).ok_or(Error::<T>::NoConsensus)?;
-        
-                    let mut result = TaskResults::<T>::get(task_id).ok_or(Error::<T>::ResultNotFound)?;
-        
-                    // In a real implementation, this would involve actual verification logic
-                    // such as comparing the result hash with a known correct hash or running the
-                    // computation again and comparing the results.
-                    // For now, we simply mark the result as verified if the consensus result matches the stored result
-                    if result.result_hash == consensus_result {
-                        result.verified = true;
-                        TaskResults::<T>::insert(task_id, result);
-                        // Change task status to verified
-                        let mut updated_task = task;
-                        updated_task.status = TaskStatus::Verified;
-                        ComputeTasks::<T>::insert(task_id, updated_task);
-                        Self::deposit_event(Event::ComputeResultVerified(task_id, verifier));
-                    } else {
-                        // If the consensus result does not match the stored result, return an error
-                        return Err(Error::<T>::VerificationFailed.into());
-                    }
-        
-                    Ok(())
-                }
+        #[pallet::weight(10_000)]
+        pub fn verify_result(
+            origin: OriginFor<T>,
+            task_id: u32,
+            results: Vec<T::Hash>
+        ) -> DispatchResult {
+            let verifier = ensure_signed(origin)?;
+
+            let task = ComputeTasks::<T>::get(task_id).ok_or(Error::<T>::TaskNotFound)?;
+            ensure!(
+                task.status == TaskStatus::Completed,
+                Error::<T>::TaskNotCompleted
+            );
+
+            // Ensure that there are results to verify
+            ensure!(!results.is_empty(), Error::<T>::NoResultsToVerify);
+
+            // Calculate the consensus result
+            let consensus_result = Self::calculate_consensus(results.clone()).ok_or(Error::<T>::NoConsensus)?;
+
+            let mut result = TaskResults::<T>::get(task_id).ok_or(Error::<T>::ResultNotFound)?;
+
+            // Enhanced verification logic placeholder
+            // In a full implementation, this would include:
+            // - Cross-referencing the result hash with a known correct hash or benchmark result
+            // - Involving multiple verifiers for a stronger consensus mechanism
+            // - Potentially re-running the computation on a trusted node for comparison
+            // For now, we mark the result as verified if the consensus result matches the stored result
+            if result.result_hash == consensus_result {
+                result.verified = true;
+                TaskResults::<T>::insert(task_id, result);
+                // Change task status to verified
+                let mut updated_task = task;
+                updated_task.status = TaskStatus::Verified;
+                ComputeTasks::<T>::insert(task_id, updated_task);
+                Self::deposit_event(Event::ComputeResultVerified(task_id, verifier));
+            } else {
+                // If the consensus result does not match the stored result, return an error
+                return Err(Error::<T>::VerificationFailed.into());
+            }
+
+            Ok(())
+        }
         
                 /// Calculate the consensus result from a list of results
                 pub fn calculate_consensus(results: Vec<T::Hash>) -> Option<T::Hash> {
@@ -431,7 +439,9 @@ pub mod pallet {
             // In a production environment, direct HTTP requests are not feasible due to no_std constraints.
             // Instead, data retrieval from external sources should be handled by off-chain workers or oracles.
             // The processed data would then be submitted to the pallet for on-chain verification and storage.
-            // TODO: Integrate with off-chain worker or oracle service (e.g., Chainlink, Acurast) for external data retrieval.
+            // Future development will include:
+            // - Integration with off-chain workers or oracle services (e.g., Chainlink, Acurast) for external data retrieval.
+            // - Mechanisms to process data securely and efficiently before returning results.
             // For now, return the input data unchanged as a placeholder.
             data.clone()
         }

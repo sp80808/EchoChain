@@ -1,88 +1,174 @@
-# EchoChain Application Documentation
+# EchoChain Web Dashboard
 
-## 1. Project Vision & Core Concept
+This document outlines the architecture, setup, and functionality of the EchoChain Web Dashboard, integrated into the project's landing page. This dashboard provides users with a comprehensive interface to interact with the EchoChain blockchain, manage their assets, and utilize core platform features.
 
-The EchoChain application is the primary user interface for the all-in-one macOS application. It serves as the wallet, sample browser, uploader, and P2P network node. The application is designed to be a slick, modern, and intuitive entry point into the EchoChain ecosystem.
+## Table of Contents
+1.  [Overview](#1-overview)
+2.  [Architecture and Technology Stack](#2-architecture-and-technology-stack)
+3.  [Project Structure](#3-project-structure)
+4.  [Setup and Installation](#4-setup-and-installation)
+5.  [Core Functionalities](#5-core-functionalities)
+    *   [Wallet Integration](#wallet-integration)
+    *   [Sample Uploading](#sample-uploading)
+    *   [Royalty Collection Management](#royalty-collection-management)
+    *   [Transaction Execution](#transaction-execution)
+6.  [Extensibility and Maintainability](#6-extensibility-and-maintainability)
+7.  [Troubleshooting](#7-troubleshooting)
 
-## 2. Key Features & User Experience
+---
 
-### a) Aesthetic
+## 1. Overview
 
-*   **Theme**: Dark mode, minimalist, professional, with a futuristic and tech-focused feel.
-*   **Inspiration**: Modern crypto or design agency websites.
+The EchoChain Web Dashboard is a user-friendly interface designed to bridge users with the EchoChain blockchain. It aims to mirror the intuitive aesthetic of the macOS application, providing a seamless experience for managing digital assets (ECHO tokens), uploading music samples, claiming royalties, and executing blockchain transactions directly from a web browser.
 
-### b) Application Sections
+## 2. Architecture and Technology Stack
 
-*   **Hero Section**: 
-    *   Compelling headline: "Create. Share. Earn. The Future of Sound is Yours."
-    *   Call-to-action buttons: "Explore Samples" or "Join the Community".
-    *   Dynamic, abstract audio visualizer animation in the background.
-*   **How It Works**: 
-    *   Simple, icon-based section explaining the process: 
-        1. Upload Your Sounds & Contribute Resources
-        2. Get Verified & Share
-        3. Earn Echo Tokens.
-*   **Featured Samples**: 
-    *   A curated, horizontally scrolling list of trending or new samples.
-*   **Tokenomics Overview**: 
-    *   A brief, visually appealing section explaining the purpose and benefits of the Echo Token.
-*   **Community Section**: 
-    *   Showcasing stats like "Samples Shared," "Creators," "Network Storage," and "Monthly Rewards Distributed."
-*   **FAQ**: 
-    *   Answering common questions about copyright, the blockchain, and earning tokens.
+The dashboard is built upon a modern and scalable web stack:
 
-## 3. Technical Infrastructure
+*   **Frontend Framework:** [**Vite + React**](https://vitejs.dev/)
+    *   Chosen for its fast development server, efficient build process, and component-based architecture.
+*   **Styling:** [**Tailwind CSS**](https://tailwindcss.com/)
+    *   A utility-first CSS framework for rapid UI development and consistent styling, aligning with existing project conventions.
+*   **Blockchain Interaction:** [**@polkadot/api**](https://polkadot.js.org/docs/api/) (Polkadot-JS API)
+    *   The official JavaScript API for interacting with Substrate-based blockchains, enabling direct RPC communication with the EchoChain node.
+*   **Wallet Integration:** [**Polkadot.js Browser Extension**](https://polkadot.js.org/extension/)
+    *   The standard and most secure method for web applications to manage user accounts and sign transactions without exposing private keys.
+*   **IPFS Interaction:** [**ipfs-http-client**](https://www.npmjs.com/package/ipfs-http-client)
+    *   A JavaScript client library for interacting with a local or remote IPFS daemon's HTTP API, used for decentralized file storage.
+*   **Backend (As Needed):** Existing `Backend_API_Services` (Node.js/FastAPI)
+    *   Can be extended to serve as an API gateway for complex operations, data aggregation, or sensitive logic that should not be handled purely client-side. For most dashboard functionalities, direct blockchain interaction is prioritized for responsiveness.
 
-*   **Application Framework**: The application will be built as a native macOS application, likely using Electron to wrap a web-based frontend.
-*   **Frontend Framework**: A modern JavaScript framework like **React** will be used to build the user interface.
-*   **Styling**: Tailwind CSS will be used for styling.
+## 3. Project Structure
 
-## 4. Development Plan
+The dashboard's code resides within the `LandingPage/project` directory, leveraging Vite's conventions for project setup and React's component-based architecture.
 
-### Phase 1: Core UI Development (4-6 weeks)
+```
+LandingPage/project/
+├───package.json
+├───vite.config.js
+├───tailwind.config.js
+├───postcss.config.js
+├───src/
+│   ├───App.jsx             // Main application component, handles routing/view switching
+│   ├───main.jsx            // Entry point for React application
+│   ├───index.css           // Main CSS file, imports Tailwind
+│   │
+│   ├───components/
+│   │   ├───Layout.jsx           // Dashboard layout (sidebar, header, navigation)
+│   │   ├───WalletConnect.jsx    // Component for connecting to Polkadot.js extension
+│   │   ├───SampleCard.jsx       // Displays individual sample details (for browsing)
+│   │   ├───TransactionTable.jsx // Displays transaction history
+│   │   ├───Input.jsx            // Reusable form input field
+│   │   ├───Button.jsx           // Reusable button component
+│   │   └───... (other shared UI components)
+│   │
+│   ├───lib/
+│   │   ├───polkadotApi.js      // Initializes and manages Polkadot-JS API connection
+│   │   ├───ipfsClient.js       // IPFS interaction logic (upload, download)
+│   │   ├───utils.js            // General utility functions (e.g., data formatters)
+│   │   ├───constants.js        // Frontend-specific constants
+│   │
+│   ├───sections/               // Dashboard sections (instead of Next.js pages)
+│   │   ├───UploadSection.jsx       // Sample Upload Section
+│   │   ├───RoyaltySection.jsx      // Royalty Management Section
+│   │   ├───WalletSection.jsx       // Wallet Overview Section
+│   │   └───TransactionsSection.jsx // Transaction History/Execution Section
+│   │
+│   └───hooks/
+│       ├───usePolkadot.js      // Custom React hook for managing blockchain state and interactions
+│       └───useIPFS.js          // Custom React hook for managing IPFS state and interactions
+```
 
-*   **Objective**: Build the core UI components for user authentication, sample browsing, and sample uploading.
-*   **Tasks**:
-    1.  Set up React Router for navigation within the application.
-    2.  Develop login and registration forms.
-    3.  Create the main sample browsing interface with search and filter options.
-    4.  Design and implement the sample upload form with metadata fields.
+## 4. Setup and Installation
 
-### Phase 2: Backend Integration (3-4 weeks)
+To set up and run the EchoChain Web Dashboard:
 
-*   **Objective**: Connect the frontend to the backend API for data exchange.
-*   **Tasks**:
-    1.  Integrate user authentication with the backend API.
-    2.  Fetch and display samples from the backend.
-    3.  Implement sample upload functionality, sending data to the backend.
-    4.  Integrate sample download functionality.
+1.  **Navigate to the project directory:**
+    ```bash
+    cd /Volumes/Harry/DEV/Echochain/LandingPage/project
+    ```
 
-### Phase 3: Advanced Features & Polish (3-4 weeks)
+2.  **Install Dependencies:**
+    ```bash
+    npm install
+    # or yarn install
+    ```
+    This will install React, Vite, Tailwind CSS, Polkadot-JS API, ipfs-http-client, and other necessary packages.
 
-*   **Objective**: Implement advanced features like audio visualizers, stem separation UI, and refine the user experience.
-*   **Tasks**:
-    1.  Integrate audio waveform previews for sample cards.
-    2.  Add UI for stem separation option during upload.
-    3.  Implement real-time audio visualizer for playback.
-    4.  Refine overall UI/UX based on design principles.
+3.  **Ensure EchoChain Node is Running:**
+    The dashboard connects to an EchoChain blockchain node via WebSocket. Make sure your local or remote EchoChain node is running and accessible at the configured RPC URL (default: `ws://127.00.1:9944`).
 
-### Phase 4: Electron Integration & Deployment (2-3 weeks)
+4.  **Install Polkadot.js Browser Extension:**
+    For wallet integration and transaction signing, you need the [Polkadot.js Browser Extension](https://polkadot.js.org/extension/) installed in your browser (Chrome, Firefox, Brave). Create or import an account within the extension.
 
-*   **Objective**: Package the web application into a native macOS application using Electron.
-*   **Tasks**:
-    1.  Set up Electron project and integrate the React build.
-    2.  Implement native macOS features as needed (e.g., menu bar, notifications).
-    3.  Test the complete macOS application.
-    4.  Prepare for distribution.
+5.  **Ensure IPFS Daemon is Running:**
+    For sample uploading and downloading, the dashboard interacts with an IPFS daemon. Ensure your local IPFS daemon (`go-ipfs`) is running and accessible at its HTTP API endpoint (default: `http://127.0.0.1:5001`).
 
-## Related Documentation
+6.  **Run the Development Server:**
+    ```bash
+    npm run dev
+    # or yarn dev
+    ```
+    The dashboard will typically be accessible at `http://localhost:5173` (Vite's default port).
 
-*   [Main EchoChain Project README](../../README.md)
-*   [EchoChain Documentation and Development Plan](../../docs/EchoChain_Documentation_and_Development_Plan.md)
-*   [Architecture Overview](../../docs/architecture.md)
+## 5. Core Functionalities
 
-## Related Documentation
+### Wallet Integration
 
-*   [Main EchoChain Project README](../../README.md)
-*   [EchoChain Documentation and Development Plan](../../docs/EchoChain_Documentation_and_Development_Plan.md)
-*   [Architecture Overview](../../docs/architecture.md)
+*   **Purpose:** Connects the user's browser-based Polkadot.js wallet to the dashboard.
+*   **Features:**
+    *   Detects and prompts for Polkadot.js extension.
+    *   Lists available accounts from the extension.
+    *   Allows selection of an active account.
+    *   Displays the selected account's SS58 address and current balance (fetched from `pallet-balances`).
+*   **Components:** `src/components/WalletConnect.jsx`, `src/lib/polkadotApi.js`, `src/hooks/usePolkadot.js`
+
+### Sample Uploading
+
+*   **Purpose:** Enables users to upload audio files and their associated metadata to IPFS, and register the IPFS CIDs on the EchoChain blockchain.
+*   **Features:**
+    *   File input for selecting audio files.
+    *   Text fields for sample title, artist, etc.
+    *   Uploads audio and metadata to a configured IPFS daemon.
+    *   Constructs and signs a `pallet-sample-registry::register_sample` extrinsic.
+    *   Submits the transaction to the EchoChain.
+    *   Provides real-time feedback on upload and transaction status.
+*   **Components:** `src/sections/UploadSection.jsx`, `src/lib/ipfsClient.js`
+
+### Royalty Collection Management
+
+*   **Purpose:** Allows users to view their earned content and network rewards and initiate claims for these rewards.
+*   **Features:**
+    *   Displays unclaimed rewards from `pallet-content-rewards` and `pallet-network-rewards`.
+    *   Provides buttons to trigger `claim_rewards` extrinsics for each reward type.
+    *   Shows transaction status for reward claims.
+*   **Components:** `src/sections/RoyaltySection.jsx`
+
+### Transaction Execution
+
+*   **Purpose:** Provides a general interface for viewing recent transactions and executing custom blockchain calls.
+*   **Features:**
+    *   Lists recent transactions associated with the connected account (conceptual, typically requires a backend indexer).
+    *   Allows users to specify a pallet module and method, along with arguments (in JSON format), to construct and send custom extrinsics.
+    *   Useful for advanced users or debugging.
+*   **Components:** `src/sections/TransactionsSection.jsx`
+
+## 6. Extensibility and Maintainability
+
+The dashboard is designed with scalability and maintainability in mind:
+
+*   **Component-Based Architecture:** UI is broken down into reusable React components, promoting modularity.
+*   **Clear Separation of Concerns:** Logic for UI, blockchain interaction, and IPFS operations are kept distinct.
+*   **Custom Hooks:** `usePolkadot` and `useIPFS` encapsulate complex logic and state, making components cleaner and more readable.
+*   **Vite Features:** Fast development server and efficient build process.
+*   **Tailwind CSS:** Provides a consistent and easily customizable styling system.
+*   **Error Handling:** Includes robust error handling and user-friendly feedback mechanisms.
+*   **Future Enhancements:** Easily extendable to include new pallets, features, or integrate with more complex backend services.
+
+## 7. Troubleshooting
+
+*   **"Polkadot.js extension not found"**: Ensure the browser extension is installed and enabled.
+*   **"Failed to connect to blockchain"**: Verify that your EchoChain node is running and accessible at the configured RPC URL (`ws://127.0.0.1:9944` by default). Check your network connection.
+*   **"Failed to upload file to IPFS"**: Ensure your local IPFS daemon is running and accessible at its HTTP API endpoint (`http://172.0.0.1:5001` by default). Note: The IPFS daemon typically runs on `127.0.0.1` (localhost).
+*   **Transaction failures**: Check the browser console for detailed error messages from the Polkadot.js extension or the blockchain node. Ensure you have sufficient funds and the correct permissions for the transaction.
+*   **Build errors**: Run `npm install` (or `yarn install`) again to ensure all dependencies are correctly installed. Clear your `node_modules` and `package-lock.json` (or `yarn.lock`) and reinstall if issues persist.

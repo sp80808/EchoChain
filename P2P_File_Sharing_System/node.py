@@ -85,8 +85,33 @@ class EchoChainNode:
 
         elif msg_type == 'request_file_download':
             content_hash = payload.get('content_hash')
-            # TODO: Implement actual file transfer logic (stub for now)
-            response = {'status': 'success', 'message': 'Download initiated (stub)'}
+            # Get file info and initiate download
+            file_info = self.file_manager.get_file_info(content_hash)
+            if file_info:
+                response = {
+                    'status': 'success',
+                    'message': 'File available for download',
+                    'file_info': {
+                        'filename': file_info['filename'],
+                        'size': file_info['size'],
+                        'num_chunks': len(file_info['chunks'])
+                    }
+                }
+            else:
+                response = {'status': 'error', 'message': 'File not found on this peer'}
+
+        elif msg_type == 'request_chunk':
+            file_hash = payload.get('file_hash')
+            chunk_index = payload.get('chunk_index')
+            chunk_data = self.file_manager.serve_chunk(file_hash, chunk_index)
+            if chunk_data:
+                response = {
+                    'status': 'success',
+                    'chunk_data': chunk_data,
+                    'chunk_index': chunk_index
+                }
+            else:
+                response = {'status': 'error', 'message': 'Chunk not found'}
 
         # Write response to peer
         try:

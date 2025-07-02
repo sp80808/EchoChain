@@ -74,8 +74,58 @@ class LocalAPI:
                     return {'status': 'error', 'message': 'Content not found in DHT'}
         elif cmd_type == 'local_request_file':
             content_hash = payload.get('content_hash')
-            # TODO: Implement download logic (stub for now)
-            return {'status': 'success', 'message': 'Download initiated (stub)'}
+            
+            # First check if we already have the file locally
+            if self.node.file_manager.has_file(content_hash):
+                file_info = self.node.file_manager.get_file_info(content_hash)
+                return {
+                    'status': 'success',
+                    'message': 'File already available locally',
+                    'filename': file_info['filename']
+                }
+            
+            # Get peers that have this content
+            peers = self.node.dht.get_peers_for_content(content_hash)
+            if not peers:
+                return {'status': 'error', 'message': 'No peers found for this content'}
+            
+            # Get file info from a peer
+            file_info = None
+            for peer in peers:
+                try:
+                    request = {
+                        'type': 'request_file_info',
+                        'payload': {'file_hash': content_hash}
+                    }
+                    response = await self.node.networking.send_message_to_peer(peer, request)
+                    if response and response.get('status') == 'success':
+                        file_info = response.get('file_info')
+                        break
+                except Exception as e:
+                    print(f"Error getting file info from peer {peer}: {e}")
+                    continue
+            
+            if not file_info:
+                return {'status': 'error', 'message': 'Could not get file information from peers'}
+            
+            # Initiate download
+            try:
+                downloaded_path = await self.node.file_manager.download_file_from_peers(
+                    content_hash, file_info, peers, self.node.networking
+                )
+                
+                if downloaded_path:
+                    return {
+                        'status': 'success',
+                        'message': 'File downloaded successfully',
+                        'file_path': downloaded_path,
+                        'filename': file_info.get('filename', 'unknown')
+                    }
+                else:
+                    return {'status': 'error', 'message': 'Download failed'}
+                    
+            except Exception as e:
+                return {'status': 'error', 'message': f'Download error: {str(e)}'}
         elif cmd_type == 'local_list_content':
             all_content = self.node.dht.get_all_content()
             return {'status': 'success', 'content_hashes': all_content}

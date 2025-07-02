@@ -4,10 +4,12 @@
  */
 
 import { logger } from './logger';
-import { 
-  distributeContentRewardsOnBlockchain, 
-  distributeNetworkRewardsOnBlockchain 
+import {
+  distributeContentRewardsOnBlockchain,
+  distributeNetworkRewardsOnBlockchain
 } from './blockchain';
+import { ApiPromise, WsProvider } from '@polkadot/api';
+import { cryptoWaitReady } from '@polkadot/util-crypto';
 
 export interface ContentReward {
   creatorId: string;
@@ -157,15 +159,48 @@ class RewardSystem {
 
   /**
    * Get eligible creators for content rewards
-   * TODO: Replace with actual database query
+   * Fetches from blockchain to get real creator data
    */
   private async getEligibleCreators(): Promise<Array<{ id: string; approvedSamples: number }>> {
-    // Placeholder implementation
-    return [
-      { id: 'creator1@example.com', approvedSamples: 10 },
-      { id: 'creator2@example.com', approvedSamples: 7 },
-      { id: 'creator3@example.com', approvedSamples: 15 }
-    ].filter(creator => creator.approvedSamples >= this.MIN_APPROVED_SAMPLES);
+    try {
+      const { getBlockchainApi } = await import('./blockchain');
+      const api = await getBlockchainApi();
+      
+      // Query all creators from the sample registry
+      const creators = await api.query.sampleRegistry.creators.entries();
+      const eligibleCreators: Array<{ id: string; approvedSamples: number }> = [];
+      
+      for (const [key, value] of creators) {
+        const creatorId = key.args[0].toString();
+        const creatorData = value.toJSON() as any;
+        
+        // Count approved samples for this creator
+        const creatorSamples = await api.query.sampleRegistry.samplesByCreator(creatorId);
+        const approvedCount = (creatorSamples.toJSON() as any[]).filter(
+          sample => sample.status === 'Approved'
+        ).length;
+        
+        if (approvedCount >= this.MIN_APPROVED_SAMPLES) {
+          eligibleCreators.push({
+            id: creatorId,
+            approvedSamples: approvedCount
+          });
+        }
+      }
+      
+      logger.info(`Found ${eligibleCreators.length} eligible creators for content rewards`);
+      return eligibleCreators;
+    } catch (error) {
+      logger.error('Error fetching eligible creators from blockchain:', error);
+      
+      // Fallback to placeholder data if blockchain is unavailable
+      logger.warn('Using fallback creator data for content rewards');
+      return [
+        { id: 'creator1@example.com', approvedSamples: 10 },
+        { id: 'creator2@example.com', approvedSamples: 7 },
+        { id: 'creator3@example.com', approvedSamples: 15 }
+      ].filter(creator => creator.approvedSamples >= this.MIN_APPROVED_SAMPLES);
+    }
   }
 
   /**

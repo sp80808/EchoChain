@@ -49,4 +49,44 @@ class Networking:
         self.peers[peer_id] = (host, port)
 
     def get_peers(self):
-        return self.peers 
+        return self.peers
+    
+    async def send_message_to_peer(self, peer_info, message):
+        """
+        Send a message to a specific peer and return the response.
+        peer_info can be either a peer_id or a (host, port) tuple.
+        """
+        try:
+            if isinstance(peer_info, str) and peer_info in self.peers:
+                # peer_info is a peer_id
+                host, port = self.peers[peer_info]
+            elif isinstance(peer_info, (tuple, list)) and len(peer_info) == 2:
+                # peer_info is (host, port)
+                host, port = peer_info
+            else:
+                print(f"Invalid peer info: {peer_info}")
+                return None
+                
+            reader, writer = await asyncio.open_connection(host, port)
+            
+            # Send message
+            writer.write(json.dumps(message).encode())
+            await writer.drain()
+            
+            # Read response
+            response_data = await reader.read(4096)
+            if response_data:
+                response = json.loads(response_data.decode())
+                return response
+            
+            return None
+            
+        except Exception as e:
+            print(f"Error sending message to peer {peer_info}: {e}")
+            return None
+        finally:
+            try:
+                writer.close()
+                await writer.wait_closed()
+            except:
+                pass

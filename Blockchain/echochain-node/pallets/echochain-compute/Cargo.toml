@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+ark-groth16 = "0.4"
 frame-support = { default-features = false, version = "4.0.0-dev" }
 frame-system = { default-features = false, version = "4.0.0-dev" }
 sp-std = { default-features = false, version = "4.0.0-dev" }

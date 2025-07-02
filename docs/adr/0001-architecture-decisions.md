@@ -11,7 +11,7 @@ EchoChain requires clear architectural decisions to guide development and ensure
 1. **Blockchain Foundation**
    - Use Substrate framework for custom blockchain
    - Implement Proof-of-Contribution consensus
-   - Support ink! smart contracts
+   - Support ink! smart contracts (via pallet-contracts) and XCM (cross-chain messaging, via pallet-xcm) in the runtime. Both are integrated with production-ready, extensible configuration.
    - Store content metadata on-chain, content off-chain
 
 2. **Client Applications**

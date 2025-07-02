@@ -49,5 +49,5 @@ The Echochain project aims to develop a blockchain-based platform with various p
 
 ## Future Scalability Considerations
 - Design the architecture to support future addition of new pallets.
-- Plan for cross-chain compatibility to enhance interoperability.
+- Plan for cross-chain compatibility to enhance interoperability (now enabled via XCM, pallet-xcm) and smart contract support (pallet-contracts).
 - Consider energy-efficient consensus mechanisms for long-term sustainability.

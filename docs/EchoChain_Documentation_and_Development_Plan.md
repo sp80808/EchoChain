@@ -78,6 +78,7 @@ The following are the primary components that require detailed documentation and
     *   Core blockchain structure (blocks, transactions, ledger).
     *   Consensus mechanism: Proof-of-Contribution (PoC) design, including how contributions are measured and validated.
     *   Smart contracts: Design for content registration, ownership transfer, royalty distribution, and network reward distribution.
+    *   The runtime now supports ink! smart contracts (via pallet-contracts) and XCM (cross-chain messaging, via pallet-xcm) with production-ready, extensible configuration.
     *   Node architecture (full nodes, light nodes).
 *   **Core Technologies Utilized:**
     *   Rust/Substrate for blockchain node and FRAME pallets.
@@ -115,6 +116,7 @@ The following are the primary components that require detailed documentation and
 *   **Resource Allocation:** Blockchain architects, smart contract developers, cryptography experts, network engineers, technical writers.
 *   **Potential Risks:** Consensus mechanism vulnerabilities, scalability issues, smart contract bugs, regulatory compliance, integration complexities with client applications.
 *   **Critical Milestones:** PoC prototype, basic blockchain functional, core FRAME pallets integrated, Flipper ink! smart contract deployed on testnet, stable testnet with automated setup, initial asset distribution, comprehensive documentation.
+*   -   XCM and smart contract (pallet-contracts) support integrated in the runtime.
 
 ### 2. Native macOS Application
 

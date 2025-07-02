@@ -36,7 +36,7 @@ The Echochain project is structured into several key directories and components,
 
 ## External Dependencies
 - **Substrate**: Framework for blockchain development, critical for Echochain node and pallet functionality.
-- **Polkadot SDK**: Provides tools for potential cross-chain interactions and shared security features.
+- **Polkadot SDK**: Provides tools for cross-chain interactions (XCM, pallet-xcm) and smart contract support (ink!, pallet-contracts) in the runtime.
 - **React.js**: Used for building the user interface, essential for user interaction with Echochain services.
 - **Node.js/TypeScript**: Powers backend API services, crucial for handling user requests and blockchain interactions.
 - **Docker**: Used for containerization, ensuring consistent deployment across environments.

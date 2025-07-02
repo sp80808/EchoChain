@@ -25,8 +25,8 @@ The EchoChain Web Dashboard is a user-friendly interface designed to bridge user
 
 The dashboard is built upon a modern and scalable web stack:
 
-*   **Frontend Framework:** [**Next.js**](https://nextjs.org/) (React)
-    *   Chosen for its server-side rendering (SSR) capabilities, file-system based routing, and robust development experience.
+*   **Frontend Framework:** [**Vite + React**](https://vitejs.dev/)
+    *   Chosen for its fast development server, efficient build process, and component-based architecture.
 *   **Styling:** [**Tailwind CSS**](https://tailwindcss.com/)
     *   A utility-first CSS framework for rapid UI development and consistent styling, aligning with existing project conventions.
 *   **Blockchain Interaction:** [**@polkadot/api**](https://polkadot.js.org/docs/api/) (Polkadot-JS API)
@@ -40,42 +40,39 @@ The dashboard is built upon a modern and scalable web stack:
 
 ## 3. Project Structure
 
-The dashboard's code resides within the `LandingPage/project` directory, leveraging Next.js's conventions for routing and component organization.
+The dashboard's code resides within the `LandingPage/project` directory, leveraging Vite's conventions for project setup and React's component-based architecture.
 
 ```
 LandingPage/project/
 ├───package.json
-├───next.config.js
+├───vite.config.js
 ├───tailwind.config.js
 ├───postcss.config.js
 ├───src/
-│   ├───pages/
-│   │   ├───_app.js             // Custom App component for global layout/state
-│   │   ├───index.js            // Existing Landing Page (can link to dashboard)
-│   │   ├───dashboard.js        // Main Dashboard Entry Page
-│   │   ├───dashboard/
-│   │   │   ├───upload.js       // Sample Upload Page
-│   │   │   ├───royalty.js      // Royalty Management Page
-│   │   │   ├───wallet.js       // Wallet Overview Page
-│   │   │   └───transactions.js // Transaction History/Execution Page
+│   ├───App.jsx             // Main application component, handles routing/view switching
+│   ├───main.jsx            // Entry point for React application
+│   ├───index.css           // Main CSS file, imports Tailwind
 │   │
 │   ├───components/
-│   │   ├───Layout.js           // Dashboard layout (sidebar, header, navigation)
-│   │   ├───WalletConnect.js    // Component for connecting to Polkadot.js extension
-│   │   ├───SampleCard.js       // Displays individual sample details (for browsing)
-│   │   ├───TransactionTable.js // Displays transaction history
-│   │   ├───Input.js            // Reusable form input field
-│   │   ├───Button.js           // Reusable button component
+│   │   ├───Layout.jsx           // Dashboard layout (sidebar, header, navigation)
+│   │   ├───WalletConnect.jsx    // Component for connecting to Polkadot.js extension
+│   │   ├───SampleCard.jsx       // Displays individual sample details (for browsing)
+│   │   ├───TransactionTable.jsx // Displays transaction history
+│   │   ├───Input.jsx            // Reusable form input field
+│   │   ├───Button.jsx           // Reusable button component
 │   │   └───... (other shared UI components)
 │   │
 │   ├───lib/
 │   │   ├───polkadotApi.js      // Initializes and manages Polkadot-JS API connection
 │   │   ├───ipfsClient.js       // IPFS interaction logic (upload, download)
 │   │   ├───utils.js            // General utility functions (e.g., data formatters)
-│   │   ├───constants.js        // Frontend-specific constants (e.g., RPC URL)
+│   │   ├───constants.js        // Frontend-specific constants
 │   │
-│   ├───styles/
-│   │   ├───globals.css         // Tailwind CSS imports and custom global styles
+│   ├───sections/               // Dashboard sections (instead of Next.js pages)
+│   │   ├───UploadSection.jsx       // Sample Upload Section
+│   │   ├───RoyaltySection.jsx      // Royalty Management Section
+│   │   ├───WalletSection.jsx       // Wallet Overview Section
+│   │   └───TransactionsSection.jsx // Transaction History/Execution Section
 │   │
 │   └───hooks/
 │       ├───usePolkadot.js      // Custom React hook for managing blockchain state and interactions
@@ -96,7 +93,7 @@ To set up and run the EchoChain Web Dashboard:
     npm install
     # or yarn install
     ```
-    This will install Next.js, React, Tailwind CSS, Polkadot-JS API, ipfs-http-client, and other necessary packages.
+    This will install React, Vite, Tailwind CSS, Polkadot-JS API, ipfs-http-client, and other necessary packages.
 
 3.  **Ensure EchoChain Node is Running:**
     The dashboard connects to an EchoChain blockchain node via WebSocket. Make sure your local or remote EchoChain node is running and accessible at the configured RPC URL (default: `ws://127.00.1:9944`).
@@ -112,7 +109,7 @@ To set up and run the EchoChain Web Dashboard:
     npm run dev
     # or yarn dev
     ```
-    The dashboard will typically be accessible at `http://localhost:3000`.
+    The dashboard will typically be accessible at `http://localhost:5173` (Vite's default port).
 
 ## 5. Core Functionalities
 
@@ -124,7 +121,7 @@ To set up and run the EchoChain Web Dashboard:
     *   Lists available accounts from the extension.
     *   Allows selection of an active account.
     *   Displays the selected account's SS58 address and current balance (fetched from `pallet-balances`).
-*   **Components:** `src/components/WalletConnect.js`, `src/lib/polkadotApi.js`, `src/hooks/usePolkadot.js`
+*   **Components:** `src/components/WalletConnect.jsx`, `src/lib/polkadotApi.js`, `src/hooks/usePolkadot.js`
 
 ### Sample Uploading
 
@@ -136,7 +133,7 @@ To set up and run the EchoChain Web Dashboard:
     *   Constructs and signs a `pallet-sample-registry::register_sample` extrinsic.
     *   Submits the transaction to the EchoChain.
     *   Provides real-time feedback on upload and transaction status.
-*   **Components:** `src/pages/dashboard/upload.js`, `src/lib/ipfsClient.js`
+*   **Components:** `src/sections/UploadSection.jsx`, `src/lib/ipfsClient.js`
 
 ### Royalty Collection Management
 
@@ -145,7 +142,7 @@ To set up and run the EchoChain Web Dashboard:
     *   Displays unclaimed rewards from `pallet-content-rewards` and `pallet-network-rewards`.
     *   Provides buttons to trigger `claim_rewards` extrinsics for each reward type.
     *   Shows transaction status for reward claims.
-*   **Components:** `src/pages/dashboard/royalty.js`
+*   **Components:** `src/sections/RoyaltySection.jsx`
 
 ### Transaction Execution
 
@@ -154,7 +151,7 @@ To set up and run the EchoChain Web Dashboard:
     *   Lists recent transactions associated with the connected account (conceptual, typically requires a backend indexer).
     *   Allows users to specify a pallet module and method, along with arguments (in JSON format), to construct and send custom extrinsics.
     *   Useful for advanced users or debugging.
-*   **Components:** `src/pages/dashboard/transactions.js`
+*   **Components:** `src/sections/TransactionsSection.jsx`
 
 ## 6. Extensibility and Maintainability
 
@@ -163,7 +160,7 @@ The dashboard is designed with scalability and maintainability in mind:
 *   **Component-Based Architecture:** UI is broken down into reusable React components, promoting modularity.
 *   **Clear Separation of Concerns:** Logic for UI, blockchain interaction, and IPFS operations are kept distinct.
 *   **Custom Hooks:** `usePolkadot` and `useIPFS` encapsulate complex logic and state, making components cleaner and more readable.
-*   **Next.js Features:** Leverages file-system routing, API routes (for future backend needs), and potential SSR/SSG for performance.
+*   **Vite Features:** Fast development server and efficient build process.
 *   **Tailwind CSS:** Provides a consistent and easily customizable styling system.
 *   **Error Handling:** Includes robust error handling and user-friendly feedback mechanisms.
 *   **Future Enhancements:** Easily extendable to include new pallets, features, or integrate with more complex backend services.
@@ -172,6 +169,6 @@ The dashboard is designed with scalability and maintainability in mind:
 
 *   **"Polkadot.js extension not found"**: Ensure the browser extension is installed and enabled.
 *   **"Failed to connect to blockchain"**: Verify that your EchoChain node is running and accessible at the configured RPC URL (`ws://127.0.0.1:9944` by default). Check your network connection.
-*   **"Failed to upload file to IPFS"**: Ensure your local IPFS daemon is running and accessible at its HTTP API endpoint (`http://127.0.0.1:5001` by default).
+*   **"Failed to upload file to IPFS"**: Ensure your local IPFS daemon is running and accessible at its HTTP API endpoint (`http://172.0.0.1:5001` by default). Note: The IPFS daemon typically runs on `127.0.0.1` (localhost).
 *   **Transaction failures**: Check the browser console for detailed error messages from the Polkadot.js extension or the blockchain node. Ensure you have sufficient funds and the correct permissions for the transaction.
 *   **Build errors**: Run `npm install` (or `yarn install`) again to ensure all dependencies are correctly installed. Clear your `node_modules` and `package-lock.json` (or `yarn.lock`) and reinstall if issues persist.

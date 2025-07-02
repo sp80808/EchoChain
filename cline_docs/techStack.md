@@ -9,7 +9,7 @@
   - Justification: Rust offers performance and safety, critical for blockchain applications where security and efficiency are paramount.
 
 ## Runtime Environment
-- **Polkadot SDK**: Integration with Polkadot for potential cross-chain interoperability and shared security.
+- **Polkadot SDK**: Integration with Polkadot for cross-chain interoperability (XCM, pallet-xcm) and smart contract support (ink!, pallet-contracts) in the runtime.
   - Justification: Leveraging Polkadot's ecosystem enhances Echochain's connectivity and scalability within the broader blockchain landscape.
 
 ## User Interface

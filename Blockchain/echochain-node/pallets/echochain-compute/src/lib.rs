@@ -25,20 +25,47 @@ pub mod pallet {
     #[pallet::call]
     impl<T: Config> Pallet<T> {
         #[pallet::weight(10_000)]
-        pub fn create_compute_task(origin: OriginFor<T>, task_id: u32) -> DispatchResult {
+        pub fn create_compute_task(origin: OriginFor<T>, task_id: u32, zkp: Vec<u8>) -> DispatchResult {
             let _ = ensure_signed(origin)?;
+        
+            // ZKP verification logic
+            let is_valid_zkp = verify_zkp(&zkp);
+        
+            if !is_valid_zkp {
+                return Err(Error::<T>::InvalidZKP.into());
+            }
+        
             // This is a stub. Logic for creating a compute task will be added here.
             Self::deposit_event(Event::ComputeTaskCreated(task_id));
             Ok(())
         }
+        
+        #[pallet::error]
+        pub enum Error<T> {
+            InvalidZKP,
+        }
+        
+        fn verify_zkp(zkp: &Vec<u8>) -> bool {
+            // In a real implementation, this would verify the ZKP against a known circuit.
+            // Placeholder: Replace with actual ZKP verification using ark- Groth16
+            // For demonstration purposes, we assume the ZKP is valid if it's not empty.
+            !zkp.is_empty()
+        }
     }
 
     pub trait ComputeInterface<AccountId> {
-        fn create_task(who: AccountId, task_id: u32) -> DispatchResult;
+        fn create_task(who: AccountId, task_id: u32, zkp: Vec<u8>) -> DispatchResult;
     }
-
+    
     impl<T: Config> ComputeInterface<T::AccountId> for Pallet<T> {
-        fn create_task(who: T::AccountId, task_id: u32) -> DispatchResult {
+        fn create_task(who: T::AccountId, task_id: u32, zkp: Vec<u8>) -> DispatchResult {
+            // ZKP verification logic
+            let is_valid_zkp = verify_zkp(&zkp);
+    
+            if !is_valid_zkp {
+                return Err(Error::<T>::InvalidZKP.into());
+            }
+    
             // This is a stub. The actual implementation would create a compute task.
             Pallet::<T>::deposit_event(Event::ComputeTaskCreated(task_id));
             Ok(())

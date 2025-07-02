@@ -15,7 +15,7 @@ EchoChain is a novel, gas-free blockchain designed for decentralized music sampl
 
 ## 2. Core Protocols & Pallets
 ### a) Sample Registry Pallet
-- **Purpose:** Register, approve, and track music samples on-chain.
+- **Purpose:** Register, approve, and track music samples on-chain. Provides an interface for other pallets to query approved sample counts.
 - **Key Storage:**
   - `Samples`: Maps sample IDs to metadata (owner, IPFS CID, status, timestamp).
   - `NextSampleId`: Auto-incrementing sample ID.
@@ -24,13 +24,15 @@ EchoChain is a novel, gas-free blockchain designed for decentralized music sampl
   - `update_sample_status(sample_id, new_status)`: Approve/reject samples (root/oracle).
 - **Events:**
   - `SampleRegistered`, `SampleStatusUpdated`.
+- **Interfaces:**
+  - `SampleInterface`: Provides `get_approved_sample_count` for querying approved samples by user.
 
 ### b) Content Rewards Pallet
-- **Purpose:** Distribute ECHO tokens to users with >= N approved samples each period.
+- **Purpose:** Distribute ECHO tokens to users with >= N approved samples each period. Integrates with the Sample Registry Pallet to determine eligibility.
 - **Key Storage:**
   - `LastRewardBlock`: Last reward distribution block.
 - **Extrinsics:**
-  - `distribute_rewards(eligible_users)`: Distribute rewards (root/off-chain worker).
+  - `distribute_rewards()`: Distribute rewards (root/off-chain worker).
 - **Events:**
   - `RewardDistributed`.
 - **Automation:** Off-chain worker triggers distribution at set intervals.
@@ -45,7 +47,7 @@ EchoChain is a novel, gas-free blockchain designed for decentralized music sampl
   - `ContentRewardsDistributed`, `NetworkRewardsDistributed`, `NetworkContributionReported`.
 
 ### d) Network Rewards Pallet
-- **Purpose:** Reward users for seeding files and bandwidth.
+- **Purpose:** Reward users for seeding files and bandwidth. Provides an interface for other pallets to submit seeding reports.
 - **Key Storage:**
   - `Reports`: User seeding reports.
   - `LastRewardBlock`: Last network reward distribution.
@@ -54,13 +56,43 @@ EchoChain is a novel, gas-free blockchain designed for decentralized music sampl
   - `distribute_network_rewards()`: Distribute rewards (root/off-chain worker).
 - **Events:**
   - `ReportSubmitted`, `NetworkRewardDistributed`.
+- **Interfaces:**
+  - `NetworkRewardsInterface`: Provides `submit_report` for other pallets to report network activity.
+
+### e) P2P Integration Pallet
+- **Purpose:** Facilitate integration with the P2P file sharing system, including reporting activity and triggering compute jobs.
+- **Extrinsics:**
+  - `register_p2p_node()`: Registers a P2P node.
+  - `report_p2p_activity(bytes_uploaded, bytes_downloaded)`: Reports P2P seeding activity to the Network Rewards Pallet.
+  - `trigger_compute_job(job_id, task_id, job_details)`: Triggers a compute job on the Echochain Compute and Marketplace Pallets.
+- **Events:**
+  - `P2PNodeRegistered`, `P2PActivityReported`, `ComputeJobTriggered`.
+
+### f) Echochain Compute Pallet
+- **Purpose:** Manages distributed compute tasks, such as audio analysis or sample validation, leveraging Acurast integration.
+- **Extrinsics:**
+  - `create_compute_task(task_id)`: Creates a new compute task.
+- **Events:**
+  - `ComputeTaskCreated`.
+- **Interfaces:**
+  - `ComputeInterface`: Provides `create_task` for other pallets to create compute tasks.
+
+### g) Echochain Marketplace Pallet
+- **Purpose:** Enables decentralized job posting and fulfillment for compute tasks related to music samples, leveraging Acurast integration.
+- **Extrinsics:**
+  - `post_compute_job(job_id, job_details)`: Posts a new compute job to the marketplace.
+- **Events:**
+  - `ComputeJobPosted`.
+- **Interfaces:**
+  - `MarketplaceInterface`: Provides `post_job` for other pallets to post compute jobs.
 
 ---
 
 ## 3. Integration Points
 - **macOS App:** Uses JSON-RPC for wallet, balance, transaction, and sample registration.
 - **Backend API:** Registers samples, fetches metadata, and reports network contributions.
-- **P2P System:** Reports seeding activity for network rewards.
+- **P2P System:** Reports seeding activity for network rewards via the P2P Integration Pallet, which can also trigger compute jobs.
+- **Acurast Integration:** The Echochain Compute and Echochain Marketplace pallets are designed to integrate with Acurast for decentralized compute capabilities.
 
 ---
 
@@ -99,4 +131,4 @@ EchoChain is a novel, gas-free blockchain designed for decentralized music sampl
 
 *   [Main EchoChain Project README](../README.md)
 *   [Architecture Overview](./architecture.md)
-*   [EchoChain Documentation and Development Plan](./EchoChain_Documentation_and_Development_Plan.md) 
+*   [EchoChain Documentation and Development Plan](./EchoChain_Documentation_and_Development_Plan.md)

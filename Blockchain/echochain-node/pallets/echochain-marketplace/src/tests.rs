@@ -1,0 +1,2586 @@
+#![cfg(test)]
+
+use frame_support::{
+	assert_err, assert_ok,
+	sp_runtime::{bounded_vec, traits::Scale, Permill, Perquintill},
+	traits::{Hooks, TypedGet},
+};
+
+use hex_literal::hex;
+use pallet_echochain::{
+	utils::validate_and_extract_attestation, Attestation, ComputeHooks, JobModules,
+	JobRegistrationFor, MultiOrigin, Schedule,
+};
+use pallet_echochain_compute::{MetricPool, ProvisionalBuffer, SlidingBuffer};
+use reputation::{BetaReputation, ReputationEngine};
+use sp_core::H256;
+
+use crate::{
+	mock::*, payments::JobBudget, stub::*, AdvertisementRestriction, Assignment,
+	AssignmentStrategy, Config, Error, ExecutionMatch, ExecutionResult, ExecutionSpecifier,
+	FeeManager, JobRequirements, JobStatus, Match, PlannedExecution, PlannedExecutions, PubKeys,
+	RegistrationExtra, Runtime, SLA,
+};
+
+/// Job is not assigned and gets deregistered successfully.
+#[test]
+fn test_valid_deregister() {
+	// 1000 is the smallest amount accepted by T::AssetTransactor::lock_asset for the asset used
+	let ad = advertisement(1000, 1, 100_000, 50_000, 8);
+	let registration1 = JobRegistrationFor::<Test> {
+		script: script(),
+		allowed_sources: None,
+		allow_only_verified_sources: false,
+		schedule: Schedule {
+			duration: 5000,
+			start_time: 1_671_800_400_000, // 23.12.2022 13:00
+			end_time: 1_671_804_000_000,   // 23.12.2022 14:00 (one hour later)
+			interval: 1_800_000,           // 30min
+			max_start_delay: 5000,
+		},
+		memory: 5_000u32,
+		network_requests: 5,
+		storage: 20_000u32,
+		required_modules: JobModules::default(),
+		extra: RegistrationExtra {
+			requirements: JobRequirements {
+				assignment_strategy: AssignmentStrategy::Single(None),
+				slots: 1,
+				reward: 3_000_000 * 2,
+				min_reputation: None,
+				processor_version: None,
+				runtime: Runtime::NodeJS,
+			},
+		},
+	};
+
+	ExtBuilder::default().build().execute_with(|| {
+		let initial_job_id = EchoChain::job_id_sequence();
+
+		assert_ok!(EchoChainMarketplace::advertise(
+			RuntimeOrigin::signed(processor_account_id()).into(),
+			ad.clone(),
+		));
+		assert_eq!(
+			Some(AdvertisementRestriction {
+				max_memory: 50_000,
+				network_request_quota: 8,
+				storage_capacity: 100_000,
+				allowed_consumers: ad.allowed_consumers.clone(),
+				available_modules: JobModules::default(),
+			}),
+			EchoChainMarketplace::stored_advertisement(processor_account_id())
+		);
+		assert_eq!(
+			Some(ad.pricing.clone()),
+			EchoChainMarketplace::stored_advertisement_pricing(processor_account_id())
+		);
+
+		let job_id1 = (MultiOrigin::EchoChain(alice_account_id()), initial_job_id + 1);
+
+		assert_ok!(EchoChain::register(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			registration1.clone(),
+		));
+		assert_eq!(12_000_000, EchoChainMarketplace::reserved(&job_id1));
+		assert_eq!(
+			Some(JobStatus::Open),
+			EchoChainMarketplace::stored_job_status(
+				MultiOrigin::EchoChain(alice_account_id()),
+				initial_job_id + 1
+			)
+		);
+		assert_eq!(
+			Some(100_000),
+			EchoChainMarketplace::stored_storage_capacity(processor_account_id())
+		);
+
+		assert_ok!(EchoChain::deregister(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			job_id1.1,
+		));
+
+		assert_eq!(None, EchoChainMarketplace::stored_job_status(&job_id1.0, &job_id1.1));
+		// Job KeyID got removed
+		assert_eq!(None, EchoChainMarketplace::job_key_ids(&job_id1));
+
+		// the remaining budget got refunded
+		assert_eq!(0, EchoChainMarketplace::reserved(&job_id1));
+
+		assert_eq!(
+			events(),
+			[
+				RuntimeEvent::EchoChainMarketplace(crate::Event::AdvertisementStored(
+					ad.clone(),
+					processor_account_id()
+				)),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: alice_account_id(),
+					to: pallet_echochain_acount(),
+					amount: 12_000_000
+				}),
+				RuntimeEvent::EchoChain(pallet_echochain::Event::JobRegistrationStoredV2(
+					job_id1.clone(),
+				)),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: alice_account_id(),
+					amount: 12_000_000
+				}),
+				RuntimeEvent::EchoChain(pallet_echochain::Event::JobRegistrationRemoved(
+					job_id1.clone()
+				)),
+			]
+		);
+	});
+}
+
+#[test]
+fn test_deregister_on_matched_job() {
+	let now: u64 = 1_671_800_100_000; // 23.12.2022 12:55;
+
+	// 1000 is the smallest amount accepted by T::AssetTransactor::lock_asset for the asset used
+	let ad = advertisement(1000, 1, 100_000, 50_000, 8);
+	let registration1 = JobRegistrationFor::<Test> {
+		script: script(),
+		allowed_sources: None,
+		allow_only_verified_sources: false,
+		schedule: Schedule {
+			duration: 5000,
+			start_time: 1_671_800_400_000, // 23.12.2022 13:00
+			end_time: 1_671_804_000_000,   // 23.12.2022 14:00 (one hour later)
+			interval: 1_800_000,           // 30min
+			max_start_delay: 5000,
+		},
+		memory: 5_000u32,
+		network_requests: 5,
+		storage: 20_000u32,
+		required_modules: JobModules::default(),
+		extra: RegistrationExtra {
+			requirements: JobRequirements {
+				assignment_strategy: AssignmentStrategy::Single(Some(bounded_vec![
+					PlannedExecution { source: processor_account_id(), start_delay: 0 },
+					PlannedExecution { source: processor_2_account_id(), start_delay: 0 }
+				])),
+				slots: 2,
+				reward: 3_000_000 * 2,
+				min_reputation: None,
+				processor_version: None,
+				runtime: Runtime::NodeJS,
+			},
+		},
+	};
+
+	ExtBuilder::default().build().execute_with(|| {
+		let initial_job_id = EchoChain::job_id_sequence();
+
+		// pretend current time
+		later(now);
+
+		assert_ok!(EchoChainMarketplace::advertise(
+			RuntimeOrigin::signed(processor_account_id()).into(),
+			ad.clone(),
+		));
+		assert_ok!(EchoChainMarketplace::advertise(
+			RuntimeOrigin::signed(processor_2_account_id()).into(),
+			ad.clone(),
+		));
+		assert_eq!(
+			Some(AdvertisementRestriction {
+				max_memory: 50_000,
+				network_request_quota: 8,
+				storage_capacity: 100_000,
+				allowed_consumers: ad.allowed_consumers.clone(),
+				available_modules: JobModules::default(),
+			}),
+			EchoChainMarketplace::stored_advertisement(processor_account_id())
+		);
+		assert_eq!(
+			Some(ad.pricing.clone()),
+			EchoChainMarketplace::stored_advertisement_pricing(processor_account_id())
+		);
+
+		let job_id1 = (MultiOrigin::EchoChain(alice_account_id()), initial_job_id + 1);
+
+		assert_ok!(EchoChain::register(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			registration1.clone(),
+		));
+		assert_eq!(Balances::free_balance(&alice_account_id()), 76_000_000);
+
+		assert_eq!(24_000_000, EchoChainMarketplace::reserved(&job_id1));
+		assert_eq!(
+			Some(JobStatus::Matched),
+			EchoChainMarketplace::stored_job_status(&job_id1.0, &job_id1.1)
+		);
+		assert_eq!(
+			Some(80_000),
+			EchoChainMarketplace::stored_storage_capacity(processor_account_id())
+		);
+
+		assert_ok!(EchoChain::deregister(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			job_id1.1
+		));
+		// The amount should have been refunded
+		assert_eq!(Balances::free_balance(&alice_account_id()), 100_000_000);
+
+		// Job got removed after the deregister call
+		assert_eq!(None, EchoChainMarketplace::stored_job_status(&job_id1.0, &job_id1.1));
+		// Job KeyID got removed
+		assert_eq!(None, EchoChainMarketplace::job_key_ids(&job_id1));
+
+		// the full budget got refunded
+		assert_eq!(0, EchoChainMarketplace::reserved(&job_id1));
+
+		assert_eq!(
+			events(),
+			[
+				RuntimeEvent::EchoChainMarketplace(crate::Event::AdvertisementStored(
+					ad.clone(),
+					processor_account_id()
+				)),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::AdvertisementStored(
+					ad.clone(),
+					processor_2_account_id()
+				)),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::JobRegistrationMatched(Match {
+					job_id: job_id1.clone(),
+					sources: bounded_vec![
+						PlannedExecution { source: processor_account_id(), start_delay: 0 },
+						PlannedExecution { source: processor_2_account_id(), start_delay: 0 }
+					],
+				})),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: alice_account_id(),
+					to: pallet_echochain_acount(),
+					amount: 24_000_000
+				}),
+				RuntimeEvent::EchoChain(pallet_echochain::Event::JobRegistrationStoredV2(
+					job_id1.clone(),
+				)),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: alice_account_id(),
+					amount: 24_000_000
+				}),
+				RuntimeEvent::EchoChain(pallet_echochain::Event::JobRegistrationRemoved(
+					job_id1.clone()
+				)),
+			]
+		);
+	});
+}
+
+#[test]
+fn test_deregister_on_assigned_job() {
+	let now: u64 = 1_671_800_100_000; // 23.12.2022 12:55;
+
+	// 1000 is the smallest amount accepted by T::AssetTransactor::lock_asset for the asset used
+	let ad = advertisement(1000, 1, 100_000, 50_000, 8);
+	let registration1 = JobRegistrationFor::<Test> {
+		script: script(),
+		allowed_sources: None,
+		allow_only_verified_sources: false,
+		schedule: Schedule {
+			duration: 5000,
+			start_time: 1_671_800_400_000, // 23.12.2022 13:00
+			end_time: 1_671_804_000_000,   // 23.12.2022 14:00 (one hour later)
+			interval: 1_800_000,           // 30min
+			max_start_delay: 0,
+		},
+		memory: 5_000u32,
+		network_requests: 5,
+		storage: 20_000u32,
+		required_modules: JobModules::default(),
+		extra: RegistrationExtra {
+			requirements: JobRequirements {
+				assignment_strategy: AssignmentStrategy::Single(Some(bounded_vec![
+					PlannedExecution { source: processor_account_id(), start_delay: 0 },
+					PlannedExecution { source: processor_2_account_id(), start_delay: 0 }
+				])),
+				slots: 2,
+				reward: 3_000_000 * 2,
+				min_reputation: None,
+				processor_version: None,
+				runtime: Runtime::NodeJS,
+			},
+		},
+	};
+
+	ExtBuilder::default().build().execute_with(|| {
+		let initial_job_id = EchoChain::job_id_sequence();
+
+		// pretend current time
+		later(now);
+
+		let _ = Balances::force_set_balance(RuntimeOrigin::root(), alice_account_id(), 100_000_000);
+
+		let consumer_initial_balance = 100_000_000u128;
+		let processor_initial_balance = 10_000_000u128;
+		let pallet_initial_balance = 10_000_000u128;
+
+		assert_eq!(Balances::free_balance(&alice_account_id()), consumer_initial_balance);
+		assert_eq!(Balances::free_balance(&processor_2_account_id()), processor_initial_balance);
+		assert_eq!(Balances::free_balance(&processor_account_id()), processor_initial_balance);
+		assert_eq!(Balances::free_balance(&pallet_echochain_acount()), pallet_initial_balance);
+		assert_eq!(Balances::free_balance(&pallet_fees_account()), pallet_initial_balance);
+
+		assert_ok!(EchoChainMarketplace::advertise(
+			RuntimeOrigin::signed(processor_account_id()).into(),
+			ad.clone(),
+		));
+		assert_ok!(EchoChainMarketplace::advertise(
+			RuntimeOrigin::signed(processor_2_account_id()).into(),
+			ad.clone(),
+		));
+		assert_eq!(
+			Some(AdvertisementRestriction {
+				max_memory: 50_000,
+				network_request_quota: 8,
+				storage_capacity: 100_000,
+				allowed_consumers: ad.allowed_consumers.clone(),
+				available_modules: JobModules::default(),
+			}),
+			EchoChainMarketplace::stored_advertisement(processor_account_id())
+		);
+		assert_eq!(
+			Some(ad.pricing.clone()),
+			EchoChainMarketplace::stored_advertisement_pricing(processor_account_id())
+		);
+
+		let job_id1 = (MultiOrigin::EchoChain(alice_account_id()), initial_job_id + 1);
+
+		assert_ok!(EchoChain::register(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			registration1.clone(),
+		));
+
+		assert_eq!(24_000_000, EchoChainMarketplace::reserved(&job_id1));
+		assert_eq!(
+			Some(JobStatus::Matched),
+			EchoChainMarketplace::stored_job_status(&job_id1.0, &job_id1.1)
+		);
+		assert_eq!(
+			Some(80_000),
+			EchoChainMarketplace::stored_storage_capacity(processor_account_id())
+		);
+
+		assert_ok!(EchoChainMarketplace::acknowledge_match(
+			RuntimeOrigin::signed(processor_account_id()).into(),
+			job_id1.clone(),
+			PubKeys::default(),
+		));
+		let assignment =
+			EchoChainMarketplace::stored_matches(processor_account_id(), job_id1.clone()).unwrap();
+		let total_reward = registration1.extra.requirements.reward
+			* (registration1.extra.requirements.slots as u128)
+			* (registration1.schedule.execution_count() as u128);
+		assert_eq!(
+			Balances::free_balance(&alice_account_id()),
+			consumer_initial_balance - total_reward
+		);
+		// assert_eq!(Balances::free_balance(&alice_account_id()), 76_000_000);
+		assert_eq!(Balances::free_balance(&processor_account_id()), processor_initial_balance);
+		assert_eq!(Balances::free_balance(&processor_2_account_id()), processor_initial_balance);
+
+		assert_ok!(EchoChain::deregister(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			job_id1.1
+		));
+		assert_eq!(
+			Balances::free_balance(&alice_account_id()),
+			consumer_initial_balance - assignment.fee_per_execution
+		);
+		assert_eq!(Balances::free_balance(&processor_2_account_id()), processor_initial_balance);
+
+		let fee_percentage = FeeManagerImpl::get_fee_percentage();
+		let fee = fee_percentage.mul_floor(assignment.fee_per_execution);
+
+		// Subtract the fee from the reward
+		let reward_after_fee = assignment.fee_per_execution - fee;
+
+		assert_eq!(
+			Balances::free_balance(&processor_account_id()),
+			processor_initial_balance + reward_after_fee
+		);
+
+		// Job got removed after the deregister call
+		assert_eq!(None, EchoChainMarketplace::stored_job_status(&job_id1.0, &job_id1.1));
+		// Job KeyID got removed
+		assert_eq!(None, EchoChainMarketplace::job_key_ids(&job_id1));
+
+		// the full budget got refunded
+		assert_eq!(0, EchoChainMarketplace::reserved(&job_id1));
+
+		assert_eq!(
+			events(),
+			[
+				RuntimeEvent::Balances(pallet_balances::Event::BalanceSet {
+					who: alice_account_id(),
+					free: 100_000_000
+				}),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::AdvertisementStored(
+					ad.clone(),
+					processor_account_id()
+				)),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::AdvertisementStored(
+					ad.clone(),
+					processor_2_account_id()
+				)),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::JobRegistrationMatched(Match {
+					job_id: job_id1.clone(),
+					sources: bounded_vec![
+						PlannedExecution { source: processor_account_id(), start_delay: 0 },
+						PlannedExecution { source: processor_2_account_id(), start_delay: 0 }
+					],
+				})),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: alice_account_id(),
+					to: pallet_echochain_acount(),
+					amount: total_reward
+				}),
+				RuntimeEvent::EchoChain(pallet_echochain::Event::JobRegistrationStoredV2(
+					job_id1.clone(),
+				)),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::JobRegistrationAssigned(
+					job_id1.clone(),
+					processor_account_id(),
+					Assignment {
+						slot: 0,
+						execution: ExecutionSpecifier::All,
+						start_delay: 0,
+						fee_per_execution: assignment.fee_per_execution,
+						acknowledged: true,
+						sla: SLA { total: 2, met: 0 },
+						pub_keys: PubKeys::default()
+					}
+				)),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: pallet_fees_account(),
+					amount: fee
+				}),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: processor_account_id(),
+					amount: reward_after_fee
+				}),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: alice_account_id(),
+					amount: total_reward - assignment.fee_per_execution
+				}),
+				RuntimeEvent::EchoChain(pallet_echochain::Event::JobRegistrationRemoved(
+					job_id1.clone()
+				)),
+			]
+		);
+	});
+}
+
+#[test]
+fn test_deregister_on_assigned_job_for_competing() {
+	let now: u64 = 1_671_800_400_000 - <Test as Config>::MatchingCompetingDueDelta::get();
+
+	// 1000 is the smallest amount accepted by T::AssetTransactor::lock_asset for the asset used
+	let ad = advertisement(1000, 1, 100_000, 50_000, 8);
+	let registration1 = JobRegistrationFor::<Test> {
+		script: script(),
+		allowed_sources: None,
+		allow_only_verified_sources: false,
+		schedule: Schedule {
+			duration: 5000,
+			start_time: 1_671_800_400_000, // 23.12.2022 13:00
+			end_time: 1_671_804_000_000,   // 23.12.2022 14:00 (one hour later)
+			interval: 1_800_000,           // 30min
+			max_start_delay: 0,
+		},
+		memory: 5_000u32,
+		network_requests: 5,
+		storage: 20_000u32,
+		required_modules: JobModules::default(),
+		extra: RegistrationExtra {
+			requirements: JobRequirements {
+				assignment_strategy: AssignmentStrategy::Competing,
+				slots: 2,
+				reward: 3_000_000 * 2,
+				min_reputation: None,
+				processor_version: None,
+				runtime: Runtime::NodeJS,
+			},
+		},
+	};
+
+	ExtBuilder::default().build().execute_with(|| {
+		let initial_job_id = EchoChain::job_id_sequence();
+
+		// pretend current time
+		later(now);
+
+		let _ = Balances::force_set_balance(RuntimeOrigin::root(), alice_account_id(), 100_000_000);
+
+		let consumer_initial_balance = 100_000_000u128;
+		let processor_initial_balance = 10_000_000u128;
+		let pallet_initial_balance = 10_000_000u128;
+
+		assert_eq!(Balances::free_balance(&alice_account_id()), consumer_initial_balance);
+		assert_eq!(Balances::free_balance(&processor_2_account_id()), processor_initial_balance);
+		assert_eq!(Balances::free_balance(&processor_account_id()), processor_initial_balance);
+		assert_eq!(Balances::free_balance(&pallet_echochain_acount()), pallet_initial_balance);
+		assert_eq!(Balances::free_balance(&pallet_fees_account()), pallet_initial_balance);
+
+		assert_ok!(EchoChainMarketplace::advertise(
+			RuntimeOrigin::signed(processor_account_id()).into(),
+			ad.clone(),
+		));
+		assert_ok!(EchoChainMarketplace::advertise(
+			RuntimeOrigin::signed(processor_2_account_id()).into(),
+			ad.clone(),
+		));
+		assert_eq!(
+			Some(AdvertisementRestriction {
+				max_memory: 50_000,
+				network_request_quota: 8,
+				storage_capacity: 100_000,
+				allowed_consumers: ad.allowed_consumers.clone(),
+				available_modules: JobModules::default(),
+			}),
+			EchoChainMarketplace::stored_advertisement(processor_account_id())
+		);
+		assert_eq!(
+			Some(ad.pricing.clone()),
+			EchoChainMarketplace::stored_advertisement_pricing(processor_account_id())
+		);
+
+		let job_id1 = (MultiOrigin::EchoChain(alice_account_id()), initial_job_id + 1);
+
+		assert_ok!(EchoChain::register(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			registration1.clone(),
+		));
+
+		assert_eq!(24_000_000, EchoChainMarketplace::reserved(&job_id1));
+		assert_ok!(EchoChainMarketplace::propose_execution_matching(
+			RuntimeOrigin::signed(bob_account_id()).into(),
+			vec![ExecutionMatch {
+				job_id: job_id1.clone(),
+				execution_index: 0,
+				sources: vec![
+					PlannedExecution { source: processor_account_id(), start_delay: 0 },
+					PlannedExecution { source: processor_2_account_id(), start_delay: 0 }
+				]
+				.try_into()
+				.unwrap(),
+			}]
+			.try_into()
+			.unwrap(),
+		));
+		assert_eq!(
+			Some(JobStatus::Matched),
+			EchoChainMarketplace::stored_job_status(&job_id1.0, &job_id1.1)
+		);
+		assert_eq!(
+			Some(80_000),
+			EchoChainMarketplace::stored_storage_capacity(processor_account_id())
+		);
+
+		assert_ok!(EchoChainMarketplace::acknowledge_execution_match(
+			RuntimeOrigin::signed(processor_account_id()).into(),
+			job_id1.clone(),
+			0,
+			PubKeys::default(),
+		));
+		assert_ok!(EchoChainMarketplace::acknowledge_execution_match(
+			RuntimeOrigin::signed(processor_2_account_id()).into(),
+			job_id1.clone(),
+			0,
+			PubKeys::default(),
+		));
+		let assignment1 =
+			EchoChainMarketplace::stored_matches(processor_account_id(), job_id1.clone()).unwrap();
+		let assignment2 =
+			EchoChainMarketplace::stored_matches(processor_2_account_id(), job_id1.clone()).unwrap();
+		let total_reward = registration1.extra.requirements.reward
+			* (registration1.extra.requirements.slots as u128)
+			* (registration1.schedule.execution_count() as u128);
+		assert_eq!(
+			Balances::free_balance(&alice_account_id()),
+			consumer_initial_balance - total_reward
+		);
+		assert_eq!(Balances::free_balance(&processor_account_id()), processor_initial_balance);
+		assert_eq!(Balances::free_balance(&processor_2_account_id()), processor_initial_balance);
+
+		assert_ok!(EchoChain::deregister(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			job_id1.1
+		));
+
+		let fee_percentage = FeeManagerImpl::get_fee_percentage();
+		let fee1 = fee_percentage.mul_floor(assignment1.fee_per_execution);
+		let fee2 = fee_percentage.mul_floor(assignment2.fee_per_execution);
+
+		// Subtract the fee from the reward
+		let reward1_after_fee = assignment1.fee_per_execution - fee1;
+		let reward2_after_fee = assignment1.fee_per_execution - fee2;
+
+		let matcher_percentage = FeeManagerImpl::get_matcher_percentage();
+		let matcher_payout = matcher_percentage.mul_floor(
+			(registration1.extra.requirements.reward
+				* registration1.extra.requirements.slots as u128)
+				- (assignment1.fee_per_execution + assignment2.fee_per_execution),
+		);
+
+		let matcher_payout_fee = fee_percentage.mul_floor(matcher_payout);
+		let matcher_pauout_after_fee = matcher_payout - matcher_payout_fee;
+
+		assert_eq!(
+			Balances::free_balance(&alice_account_id()),
+			consumer_initial_balance
+				- (assignment1.fee_per_execution + assignment2.fee_per_execution + matcher_payout)
+		);
+		assert_eq!(
+			Balances::free_balance(&processor_2_account_id()),
+			processor_initial_balance + reward2_after_fee
+		);
+		assert_eq!(
+			Balances::free_balance(&processor_account_id()),
+			processor_initial_balance + reward1_after_fee
+		);
+
+		// Job got removed after the deregister call
+		assert_eq!(None, EchoChainMarketplace::stored_job_status(&job_id1.0, &job_id1.1));
+		// Job KeyID got removed
+		assert_eq!(None, EchoChainMarketplace::job_key_ids(&job_id1));
+
+		// the full budget got refunded
+		assert_eq!(0, EchoChainMarketplace::reserved(&job_id1));
+
+		assert_eq!(
+			events(),
+			[
+				RuntimeEvent::Balances(pallet_balances::Event::BalanceSet {
+					who: alice_account_id(),
+					free: consumer_initial_balance
+				}),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::AdvertisementStored(
+					ad.clone(),
+					processor_account_id()
+				)),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::AdvertisementStored(
+					ad.clone(),
+					processor_2_account_id()
+				)),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: alice_account_id(),
+					to: pallet_echochain_acount(),
+					amount: total_reward
+				}),
+				RuntimeEvent::EchoChain(pallet_echochain::Event::JobRegistrationStoredV2(
+					job_id1.clone(),
+				)),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::JobExecutionMatched(
+					ExecutionMatch {
+						job_id: job_id1.clone(),
+						execution_index: 0,
+						sources: bounded_vec![
+							PlannedExecution { source: processor_account_id(), start_delay: 0 },
+							PlannedExecution { source: processor_2_account_id(), start_delay: 0 }
+						],
+					}
+				)),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: pallet_fees_account(),
+					amount: matcher_payout_fee,
+				}),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: bob_account_id(),
+					amount: matcher_pauout_after_fee,
+				}),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::JobRegistrationAssigned(
+					job_id1.clone(),
+					processor_account_id(),
+					Assignment {
+						slot: 0,
+						execution: ExecutionSpecifier::Index(0),
+						start_delay: 0,
+						fee_per_execution: assignment1.fee_per_execution,
+						acknowledged: true,
+						sla: SLA { total: 1, met: 0 },
+						pub_keys: PubKeys::default()
+					}
+				)),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::JobRegistrationAssigned(
+					job_id1.clone(),
+					processor_2_account_id(),
+					Assignment {
+						slot: 1,
+						execution: ExecutionSpecifier::Index(0),
+						start_delay: 0,
+						fee_per_execution: assignment2.fee_per_execution,
+						acknowledged: true,
+						sla: SLA { total: 1, met: 0 },
+						pub_keys: PubKeys::default()
+					}
+				)),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: pallet_fees_account(),
+					amount: fee1
+				}),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: processor_account_id(),
+					amount: reward1_after_fee
+				}),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: pallet_fees_account(),
+					amount: fee2
+				}),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: processor_2_account_id(),
+					amount: reward2_after_fee
+				}),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: alice_account_id(),
+					amount: total_reward
+						- (assignment1.fee_per_execution
+							+ assignment2.fee_per_execution
+							+ matcher_payout)
+				}),
+				RuntimeEvent::EchoChain(pallet_echochain::Event::JobRegistrationRemoved(
+					job_id1.clone()
+				)),
+			]
+		);
+	});
+}
+
+#[test]
+fn test_deregister_on_assigned_job_for_competing_2() {
+	let now: u64 = 1_671_800_400_000 - <Test as Config>::MatchingCompetingDueDelta::get();
+
+	// 1000 is the smallest amount accepted by T::AssetTransactor::lock_asset for the asset used
+	let ad = advertisement(1000, 1, 100_000, 50_000, 8);
+	let registration1 = JobRegistrationFor::<Test> {
+		script: script(),
+		allowed_sources: None,
+		allow_only_verified_sources: false,
+		schedule: Schedule {
+			duration: 5000,
+			start_time: 1_671_800_400_000, // 23.12.2022 13:00
+			end_time: 1_671_804_000_000,   // 23.12.2022 14:00 (one hour later)
+			interval: 1_800_000,           // 30min
+			max_start_delay: 0,
+		},
+		memory: 5_000u32,
+		network_requests: 5,
+		storage: 20_000u32,
+		required_modules: JobModules::default(),
+		extra: RegistrationExtra {
+			requirements: JobRequirements {
+				assignment_strategy: AssignmentStrategy::Competing,
+				slots: 1,
+				reward: 3_000_000 * 2,
+				min_reputation: None,
+				processor_version: None,
+				runtime: Runtime::NodeJS,
+			},
+		},
+	};
+
+	ExtBuilder::default().build().execute_with(|| {
+		let initial_job_id = EchoChain::job_id_sequence();
+
+		// pretend current time
+		later(now);
+
+		let _ = Balances::force_set_balance(RuntimeOrigin::root(), alice_account_id(), 100_000_000);
+
+		let consumer_initial_balance = 100_000_000u128;
+		let processor_initial_balance = 10_000_000u128;
+		let pallet_initial_balance = 10_000_000u128;
+
+		assert_eq!(Balances::free_balance(&alice_account_id()), consumer_initial_balance);
+		assert_eq!(Balances::free_balance(&processor_2_account_id()), processor_initial_balance);
+		assert_eq!(Balances::free_balance(&processor_account_id()), processor_initial_balance);
+		assert_eq!(Balances::free_balance(&pallet_echochain_acount()), pallet_initial_balance);
+		assert_eq!(Balances::free_balance(&pallet_fees_account()), pallet_initial_balance);
+
+		assert_ok!(EchoChainMarketplace::advertise(
+			RuntimeOrigin::signed(processor_account_id()).into(),
+			ad.clone(),
+		));
+		assert_ok!(EchoChainMarketplace::advertise(
+			RuntimeOrigin::signed(processor_2_account_id()).into(),
+			ad.clone(),
+		));
+		assert_eq!(
+			Some(AdvertisementRestriction {
+				max_memory: 50_000,
+				network_request_quota: 8,
+				storage_capacity: 100_000,
+				allowed_consumers: ad.allowed_consumers.clone(),
+				available_modules: JobModules::default(),
+			}),
+			EchoChainMarketplace::stored_advertisement(processor_account_id())
+		);
+		assert_eq!(
+			Some(ad.pricing.clone()),
+			EchoChainMarketplace::stored_advertisement_pricing(processor_account_id())
+		);
+
+		let job_id1 = (MultiOrigin::EchoChain(alice_account_id()), initial_job_id + 1);
+
+		assert_ok!(EchoChain::register(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			registration1.clone(),
+		));
+
+		assert_eq!(12_000_000, EchoChainMarketplace::reserved(&job_id1));
+		assert_ok!(EchoChainMarketplace::propose_execution_matching(
+			RuntimeOrigin::signed(bob_account_id()).into(),
+			vec![ExecutionMatch {
+				job_id: job_id1.clone(),
+				execution_index: 0,
+				sources: vec![PlannedExecution { source: processor_account_id(), start_delay: 0 },]
+					.try_into()
+					.unwrap(),
+			}]
+			.try_into()
+			.unwrap(),
+		));
+		assert_eq!(
+			Some(JobStatus::Matched),
+			EchoChainMarketplace::stored_job_status(&job_id1.0, &job_id1.1)
+		);
+		assert_eq!(
+			Some(80_000),
+			EchoChainMarketplace::stored_storage_capacity(processor_account_id())
+		);
+
+		assert_ok!(EchoChainMarketplace::acknowledge_execution_match(
+			RuntimeOrigin::signed(processor_account_id()).into(),
+			job_id1.clone(),
+			0,
+			PubKeys::default(),
+		));
+
+		later(registration1.schedule.start_time);
+
+		let mut assignment1 =
+			EchoChainMarketplace::stored_matches(processor_account_id(), job_id1.clone()).unwrap();
+
+		assert_ok!(EchoChainMarketplace::report(
+			RuntimeOrigin::signed(processor_account_id()).into(),
+			job_id1.clone(),
+			ExecutionResult::Success(b"JOB_EXECUTED".to_vec().try_into().unwrap()),
+		));
+
+		assignment1.sla.met = 1;
+
+		later(now + registration1.schedule.interval);
+
+		assert_ok!(EchoChainMarketplace::propose_execution_matching(
+			RuntimeOrigin::signed(bob_account_id()).into(),
+			vec![ExecutionMatch {
+				job_id: job_id1.clone(),
+				execution_index: 1,
+				sources: vec![PlannedExecution {
+					source: processor_2_account_id(),
+					start_delay: 0,
+				},]
+				.try_into()
+				.unwrap(),
+			}]
+			.try_into()
+			.unwrap(),
+		));
+
+		assert_ok!(EchoChainMarketplace::acknowledge_execution_match(
+			RuntimeOrigin::signed(processor_2_account_id()).into(),
+			job_id1.clone(),
+			1,
+			PubKeys::default(),
+		));
+
+		let assignment2 =
+			EchoChainMarketplace::stored_matches(processor_2_account_id(), job_id1.clone()).unwrap();
+
+		let total_reward = registration1.extra.requirements.reward
+			* (registration1.extra.requirements.slots as u128)
+			* (registration1.schedule.execution_count() as u128);
+		let fee_percentage = FeeManagerImpl::get_fee_percentage();
+		let fee1 = fee_percentage.mul_floor(assignment1.fee_per_execution);
+		let reward1_after_fee = assignment1.fee_per_execution - fee1;
+		let matcher_percentage = FeeManagerImpl::get_matcher_percentage();
+		let matcher_payout = matcher_percentage
+			.mul_floor(registration1.extra.requirements.reward - assignment1.fee_per_execution)
+			+ matcher_percentage
+				.mul_floor(registration1.extra.requirements.reward - assignment2.fee_per_execution);
+		let matcher_payout_fee = fee_percentage.mul_floor(matcher_payout);
+		let matcher_payout_afer_fee = matcher_payout - matcher_payout_fee;
+
+		assert_eq!(
+			Balances::free_balance(&alice_account_id()),
+			consumer_initial_balance - total_reward
+		);
+		assert_eq!(
+			Balances::free_balance(&processor_account_id()),
+			processor_initial_balance + reward1_after_fee
+		);
+		assert_eq!(Balances::free_balance(&processor_2_account_id()), processor_initial_balance);
+
+		assert_ok!(EchoChain::deregister(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			job_id1.1
+		));
+
+		let fee2 = fee_percentage.mul_floor(assignment2.fee_per_execution);
+		let reward2_after_fee = assignment2.fee_per_execution - fee2;
+
+		assert_eq!(
+			Balances::free_balance(&alice_account_id()),
+			consumer_initial_balance
+				- (assignment1.fee_per_execution + assignment2.fee_per_execution + matcher_payout)
+		);
+		assert_eq!(
+			Balances::free_balance(&processor_2_account_id()),
+			processor_initial_balance + reward2_after_fee
+		);
+		assert_eq!(
+			Balances::free_balance(&processor_account_id()),
+			processor_initial_balance + reward1_after_fee
+		);
+
+		// Job got removed after the deregister call
+		assert_eq!(None, EchoChainMarketplace::stored_job_status(&job_id1.0, &job_id1.1));
+		// Job KeyID got removed
+		assert_eq!(None, EchoChainMarketplace::job_key_ids(&job_id1));
+
+		// the full budget got refunded
+		assert_eq!(0, EchoChainMarketplace::reserved(&job_id1));
+
+		assert_eq!(
+			events(),
+			[
+				RuntimeEvent::Balances(pallet_balances::Event::BalanceSet {
+					who: alice_account_id(),
+					free: consumer_initial_balance
+				}),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::AdvertisementStored(
+					ad.clone(),
+					processor_account_id()
+				)),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::AdvertisementStored(
+					ad.clone(),
+					processor_2_account_id()
+				)),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: alice_account_id(),
+					to: pallet_echochain_acount(),
+					amount: total_reward
+				}),
+				RuntimeEvent::EchoChain(pallet_echochain::Event::JobRegistrationStoredV2(
+					job_id1.clone(),
+				)),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::JobExecutionMatched(
+					ExecutionMatch {
+						job_id: job_id1.clone(),
+						execution_index: 0,
+						sources: bounded_vec![PlannedExecution {
+							source: processor_account_id(),
+							start_delay: 0
+						},],
+					}
+				)),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: pallet_fees_account(),
+					amount: matcher_payout_fee / 2
+				}),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: bob_account_id(),
+					amount: matcher_payout_afer_fee / 2
+				}),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::JobRegistrationAssigned(
+					job_id1.clone(),
+					processor_account_id(),
+					Assignment {
+						slot: 0,
+						execution: ExecutionSpecifier::Index(0),
+						start_delay: 0,
+						fee_per_execution: assignment1.fee_per_execution,
+						acknowledged: true,
+						sla: SLA { total: 1, met: 0 },
+						pub_keys: PubKeys::default()
+					}
+				)),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: pallet_fees_account(),
+					amount: fee1
+				}),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: processor_account_id(),
+					amount: reward1_after_fee
+				}),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::ExecutionSuccess(
+					job_id1.clone(),
+					b"JOB_EXECUTED".to_vec().try_into().unwrap()
+				)),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::Reported(
+					job_id1.clone(),
+					processor_account_id(),
+					assignment1.clone()
+				)),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::JobExecutionMatched(
+					ExecutionMatch {
+						job_id: job_id1.clone(),
+						execution_index: 1,
+						sources: bounded_vec![PlannedExecution {
+							source: processor_2_account_id(),
+							start_delay: 0
+						},],
+					}
+				)),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: pallet_fees_account(),
+					amount: matcher_payout_fee / 2
+				}),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: bob_account_id(),
+					amount: matcher_payout_afer_fee / 2
+				}),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::JobRegistrationAssigned(
+					job_id1.clone(),
+					processor_2_account_id(),
+					Assignment {
+						slot: 0,
+						execution: ExecutionSpecifier::Index(1),
+						start_delay: 0,
+						fee_per_execution: assignment2.fee_per_execution,
+						acknowledged: true,
+						sla: SLA { total: 1, met: 0 },
+						pub_keys: PubKeys::default()
+					}
+				)),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: pallet_fees_account(),
+					amount: fee2
+				}),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: processor_2_account_id(),
+					amount: reward2_after_fee
+				}),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: alice_account_id(),
+					amount: total_reward
+						- (assignment1.fee_per_execution
+							+ assignment2.fee_per_execution
+							+ matcher_payout)
+				}),
+				RuntimeEvent::EchoChain(pallet_echochain::Event::JobRegistrationRemoved(
+					job_id1.clone()
+				)),
+			]
+		);
+	});
+}
+
+#[test]
+fn test_match() {
+	let now: u64 = 1_671_800_100_000; // 23.12.2022 12:55;
+
+	// 1000 is the smallest amount accepted by T::AssetTransactor::lock_asset for the asset used
+	let ad = advertisement(1000, 1, 100_000, 50_000, 8);
+	let registration1 = JobRegistrationFor::<Test> {
+		script: script(),
+		allowed_sources: None,
+		allow_only_verified_sources: false,
+		schedule: Schedule {
+			duration: 5000,
+			start_time: 1_671_800_400_000, // 23.12.2022 13:00
+			end_time: 1_671_804_000_000,   // 23.12.2022 14:00 (one hour later)
+			interval: 1_800_000,           // 30min
+			max_start_delay: 5000,
+		},
+		memory: 5_000u32,
+		network_requests: 5,
+		storage: 20_000u32,
+		required_modules: JobModules::default(),
+		extra: RegistrationExtra {
+			requirements: JobRequirements {
+				assignment_strategy: AssignmentStrategy::Single(None),
+				slots: 1,
+				reward: 3_000_000 * 2,
+				min_reputation: None,
+				processor_version: None,
+				runtime: Runtime::NodeJS,
+			},
+		},
+	};
+	let registration2 = JobRegistrationFor::<Test> {
+		script: script(),
+		allowed_sources: None,
+		allow_only_verified_sources: false,
+		schedule: Schedule {
+			duration: 5000,
+			start_time: 1_671_800_400_000, // 23.12.2022 13:00
+			end_time: 1_671_804_000_000,   // 23.12.2022 14:00 (one hour later)
+			interval: 1_800_000,           // 30min
+			max_start_delay: 10_000,
+		},
+		memory: 5_000u32,
+		network_requests: 5,
+		storage: 20_000u32,
+		required_modules: JobModules::default(),
+		extra: RegistrationExtra {
+			requirements: JobRequirements {
+				assignment_strategy: AssignmentStrategy::Single(None),
+				slots: 1,
+				reward: 3_000_000 * 2,
+				min_reputation: None,
+				processor_version: None,
+				runtime: Runtime::NodeJS,
+			},
+		},
+	};
+
+	ExtBuilder::default().build().execute_with(|| {
+		let initial_job_id = EchoChain::job_id_sequence();
+
+		// pretend current time
+		later(now);
+
+		let chain = attestation_chain();
+		assert_ok!(EchoChain::submit_attestation(
+			RuntimeOrigin::signed(processor_account_id()).into(),
+			chain.clone()
+		));
+		assert_ok!(validate_and_extract_attestation::<Test>(&processor_account_id(), &chain));
+
+		assert_ok!(EchoChainMarketplace::advertise(
+			RuntimeOrigin::signed(processor_account_id()).into(),
+			ad.clone(),
+		));
+		assert_eq!(
+			Some(AdvertisementRestriction {
+				max_memory: 50_000,
+				network_request_quota: 8,
+				storage_capacity: 100_000,
+				allowed_consumers: ad.allowed_consumers.clone(),
+				available_modules: JobModules::default(),
+			}),
+			EchoChainMarketplace::stored_advertisement(processor_account_id())
+		);
+		assert_eq!(
+			Some(ad.pricing.clone()),
+			EchoChainMarketplace::stored_advertisement_pricing(processor_account_id())
+		);
+
+		assert_ok!(EchoChainCompute::create_pool(
+			RuntimeOrigin::root(),
+			*b"cpu-ops-per-second______",
+			Perquintill::from_percent(25),
+			bounded_vec![],
+		));
+		let pool_id = EchoChainCompute::last_metric_pool_id();
+		let _ = EchoChainCompute::commit(&processor_account_id(), vec![(pool_id, 1, 2)]);
+
+		let job_id1 = (MultiOrigin::EchoChain(alice_account_id()), initial_job_id + 1);
+		let job_id2 = (MultiOrigin::EchoChain(alice_account_id()), initial_job_id + 2);
+
+		assert_ok!(EchoChain::register_with_min_metrics(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			registration1.clone(),
+			bounded_vec![(pool_id, 1, 4)],
+		));
+		assert_eq!(12_000_000, EchoChainMarketplace::reserved(&job_id1));
+		assert_ok!(EchoChain::register(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			registration2.clone(),
+		));
+		assert_eq!(12_000_000, EchoChainMarketplace::reserved(&job_id2));
+		assert_eq!(
+			Some(JobStatus::Open),
+			EchoChainMarketplace::stored_job_status(
+				MultiOrigin::EchoChain(alice_account_id()),
+				initial_job_id + 1
+			)
+		);
+		assert_eq!(
+			Some(100_000),
+			EchoChainMarketplace::stored_storage_capacity(processor_account_id())
+		);
+
+		let job_match1 = Match {
+			job_id: job_id1.clone(),
+			sources: bounded_vec![PlannedExecution {
+				source: processor_account_id(),
+				start_delay: 0,
+			}],
+		};
+		let job_match2 = Match {
+			job_id: job_id2.clone(),
+			sources: bounded_vec![PlannedExecution {
+				source: processor_account_id(),
+				start_delay: 5_000,
+			}],
+		};
+
+		assert_ok!(EchoChainMarketplace::propose_matching(
+			RuntimeOrigin::signed(charlie_account_id()).into(),
+			vec![job_match1.clone(), job_match2.clone()].try_into().unwrap(),
+		));
+		assert_eq!(
+			Some(JobStatus::Matched),
+			EchoChainMarketplace::stored_job_status(&job_id1.0, &job_id1.1)
+		);
+		assert_eq!(
+			Some(60_000),
+			EchoChainMarketplace::stored_storage_capacity(processor_account_id())
+		);
+		// matcher got paid out already so job budget decreased
+		assert_eq!(11804000, EchoChainMarketplace::reserved(&job_id1));
+		assert_eq!(11804000, EchoChainMarketplace::reserved(&job_id2));
+
+		assert_ok!(EchoChainMarketplace::acknowledge_match(
+			RuntimeOrigin::signed(processor_account_id()).into(),
+			job_id1.clone(),
+			PubKeys::default(),
+		));
+		assert_eq!(
+			Some(JobStatus::Assigned(1)),
+			EchoChainMarketplace::stored_job_status(&job_id1.0, &job_id1.1)
+		);
+
+		// pretend time moved on
+		assert_eq!(1, System::block_number());
+		later(registration1.schedule.start_time + 3000); // pretend actual execution until report call took 3 seconds
+		assert_eq!(2, System::block_number());
+
+		assert_ok!(EchoChainMarketplace::report(
+			RuntimeOrigin::signed(processor_account_id()).into(),
+			job_id1.clone(),
+			ExecutionResult::Success(operation_hash())
+		));
+		// job budget decreased by reward worth one execution
+		assert_eq!(6784000, EchoChainMarketplace::reserved(&job_id1));
+		let assignment1 =
+			EchoChainMarketplace::stored_matches(processor_account_id(), job_id1.clone()).unwrap();
+		let assignment2 =
+			EchoChainMarketplace::stored_matches(processor_account_id(), job_id2.clone()).unwrap();
+		// average reward updated on acknowledged
+		assert_eq!(
+			Some((assignment1.fee_per_execution + assignment2.fee_per_execution) / 2),
+			EchoChainMarketplace::average_reward()
+		);
+		// reputation updated to around ~60%
+		assert_eq!(
+			Permill::from_parts(611_764),
+			BetaReputation::<u128>::normalize(
+				EchoChainMarketplace::stored_reputation(processor_account_id()).unwrap()
+			)
+			.unwrap()
+		);
+		assert_eq!(
+			Some(Assignment {
+				execution: ExecutionSpecifier::All,
+				slot: 0,
+				start_delay: 0,
+				fee_per_execution: 5_020_000,
+				acknowledged: true,
+				sla: SLA { total: 2, met: 1 },
+				pub_keys: PubKeys::default(),
+			}),
+			EchoChainMarketplace::stored_matches(processor_account_id(), job_id1.clone()),
+		);
+		// Job still assigned after one execution
+		assert_eq!(
+			Some(JobStatus::Assigned(1)),
+			EchoChainMarketplace::stored_job_status(&job_id1.0, &job_id1.1),
+		);
+		assert_eq!(
+			Some(60000),
+			EchoChainMarketplace::stored_storage_capacity(processor_account_id())
+		);
+
+		// pretend time moved on
+		later(registration1.schedule.range(0).1 - 2000);
+		assert_eq!(3, System::block_number());
+
+		assert_ok!(EchoChainMarketplace::report(
+			RuntimeOrigin::signed(processor_account_id()).into(),
+			job_id1.clone(),
+			ExecutionResult::Success(operation_hash())
+		));
+		// job budget decreased by reward worth one execution
+		assert_eq!(1764000, EchoChainMarketplace::reserved(&job_id1));
+
+		// pretend time moved on
+		later(registration1.schedule.end_time + 1);
+		assert_eq!(4, System::block_number());
+
+		assert_eq!(1764000, EchoChainMarketplace::reserved(&job_id1));
+
+		assert_ok!(EchoChainMarketplace::finalize_job(
+			RuntimeOrigin::signed(processor_account_id()).into(),
+			job_id1.clone()
+		));
+
+		assert_eq!(
+			None,
+			EchoChainMarketplace::stored_matches(processor_account_id(), job_id1.clone()),
+		);
+		assert_eq!(Some(2), EchoChainMarketplace::total_assigned());
+		// reputation increased
+		assert_eq!(
+			Permill::from_parts(725_789),
+			BetaReputation::<u128>::normalize(
+				EchoChainMarketplace::stored_reputation(processor_account_id()).unwrap()
+			)
+			.unwrap()
+		);
+		// Job still assigned after last execution
+		assert_eq!(
+			Some(JobStatus::Assigned(1)),
+			EchoChainMarketplace::stored_job_status(&job_id1.0, &job_id1.1),
+		);
+		assert_eq!(
+			// only job2 is still blocking memory
+			Some(80_000),
+			EchoChainMarketplace::stored_storage_capacity(processor_account_id())
+		);
+
+		assert_ok!(EchoChainMarketplace::finalize_jobs(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			vec![job_id1.1].try_into().unwrap(),
+		));
+
+		// Job no longer assigned after finalization
+		assert_eq!(None, EchoChainMarketplace::stored_job_status(&job_id1.0, &job_id1.1));
+		// Job KeyID got removed
+		assert_eq!(None, EchoChainMarketplace::job_key_ids(&job_id1));
+		// the remaining budget got refunded
+		assert_eq!(0, EchoChainMarketplace::reserved(&job_id1));
+		// but job2 still have full budget
+		assert_eq!(11804000, EchoChainMarketplace::reserved(&job_id2));
+
+		assert_eq!(
+			events(),
+			[
+				RuntimeEvent::EchoChain(pallet_echochain::Event::AttestationStoredV2(
+					processor_account_id()
+				)),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::AdvertisementStored(
+					ad.clone(),
+					processor_account_id()
+				)),
+				RuntimeEvent::EchoChainCompute(pallet_echochain_compute::Event::PoolCreated(
+					1,
+					MetricPool {
+						config: bounded_vec![],
+						name: *b"cpu-ops-per-second______",
+						reward: ProvisionalBuffer::new(Perquintill::from_percent(25)),
+						total: SlidingBuffer::new(0),
+					}
+				)),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: alice_account_id(),
+					to: pallet_echochain_acount(),
+					amount: 12_000_000
+				}),
+				RuntimeEvent::EchoChain(pallet_echochain::Event::JobRegistrationStoredV2(
+					job_id1.clone(),
+				)),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: alice_account_id(),
+					to: pallet_echochain_acount(),
+					amount: 12_000_000
+				}),
+				RuntimeEvent::EchoChain(pallet_echochain::Event::JobRegistrationStoredV2(
+					job_id2.clone(),
+				)),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::JobRegistrationMatched(job_match1)),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::JobRegistrationMatched(job_match2)),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: pallet_fees_account(),
+					amount: 117_600
+				}),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: charlie_account_id(),
+					amount: 274_400
+				}),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::JobRegistrationAssigned(
+					job_id1.clone(),
+					processor_account_id(),
+					Assignment {
+						slot: 0,
+						execution: ExecutionSpecifier::All,
+						start_delay: 0,
+						fee_per_execution: 5_020_000,
+						acknowledged: true,
+						sla: SLA { total: 2, met: 0 },
+						pub_keys: PubKeys::default(),
+					}
+				)),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: pallet_fees_account(),
+					amount: 1_506_000
+				}),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: processor_account_id(),
+					amount: 3_514_000
+				}),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::ExecutionSuccess(
+					job_id1.clone(),
+					operation_hash()
+				)),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::Reported(
+					job_id1.clone(),
+					processor_account_id(),
+					Assignment {
+						slot: 0,
+						execution: ExecutionSpecifier::All,
+						start_delay: 0,
+						fee_per_execution: 5_020_000,
+						acknowledged: true,
+						sla: SLA { total: 2, met: 1 },
+						pub_keys: PubKeys::default(),
+					}
+				)),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: pallet_fees_account(),
+					amount: 1_506_000
+				}),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: processor_account_id(),
+					amount: 3_514_000
+				}),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::ExecutionSuccess(
+					job_id1.clone(),
+					operation_hash()
+				)),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::Reported(
+					job_id1.clone(),
+					processor_account_id(),
+					Assignment {
+						slot: 0,
+						execution: ExecutionSpecifier::All,
+						start_delay: 0,
+						fee_per_execution: 5_020_000,
+						acknowledged: true,
+						sla: SLA { total: 2, met: 2 },
+						pub_keys: PubKeys::default(),
+					}
+				)),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::JobFinalized(job_id1.clone())),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: alice_account_id(),
+					amount: 1_764_000
+				}),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::JobFinalized(job_id1.clone(),)),
+			]
+		);
+	});
+}
+
+#[test]
+fn test_multi_assignments() {
+	let now = 1_694_795_700_000; // 15.09.2023 17:35
+
+	// 1000 is the smallest amount accepted by T::AssetTransactor::lock_asset for the asset used
+	let ad = advertisement(1000, 1, 100_000, 50_000, 8);
+	let registration = JobRegistrationFor::<Test> {
+		script: script(),
+		allowed_sources: None,
+		allow_only_verified_sources: false,
+		schedule: Schedule {
+			duration: 1000,
+			start_time: 1_694_796_000_000, // 15.09.2023 17:40
+			end_time: 1_694_796_120_000,   // 15.09.2023 17:42 (2 minutes later)
+			interval: 10000,               // 10 seconds
+			max_start_delay: 0,
+		},
+		memory: 5_000u32,
+		network_requests: 5,
+		storage: 20_000u32,
+		required_modules: JobModules::default(),
+		extra: RegistrationExtra {
+			requirements: JobRequirements {
+				assignment_strategy: AssignmentStrategy::Single(None),
+				slots: 4,
+				reward: 3_000_000 * 2,
+				min_reputation: None,
+				processor_version: None,
+				runtime: Runtime::NodeJS,
+			},
+		},
+	};
+
+	ExtBuilder::default().build().execute_with(|| {
+		let _ =
+			Balances::force_set_balance(RuntimeOrigin::root(), alice_account_id(), 1_000_000_000);
+
+		let initial_job_id = EchoChain::job_id_sequence();
+
+		// pretend current time
+		later(now);
+
+		let processors = vec![
+			(processor_account_id(), attestation_chain()),
+			(processor_2_account_id(), attestation_chain_processor_2()),
+			(processor_3_account_id(), attestation_chain_processor_3()),
+			(processor_4_account_id(), attestation_chain_processor_4()),
+		];
+
+		let _attestations: Vec<Attestation> = processors
+			.iter()
+			.map(|(processor, attestation_chain)| {
+				assert_ok!(EchoChain::submit_attestation(
+					RuntimeOrigin::signed(processor.clone()).into(),
+					attestation_chain.clone()
+				));
+				let attestation =
+					validate_and_extract_attestation::<Test>(processor, &attestation_chain)
+						.unwrap();
+
+				assert_ok!(EchoChainMarketplace::advertise(
+					RuntimeOrigin::signed(processor.clone()).into(),
+					ad.clone(),
+				));
+				assert_eq!(
+					Some(AdvertisementRestriction {
+						max_memory: 50_000,
+						network_request_quota: 8,
+						storage_capacity: 100_000,
+						allowed_consumers: ad.allowed_consumers.clone(),
+						available_modules: JobModules::default(),
+					}),
+					EchoChainMarketplace::stored_advertisement(processor)
+				);
+				assert_eq!(
+					Some(ad.pricing.clone()),
+					EchoChainMarketplace::stored_advertisement_pricing(processor)
+				);
+
+				return attestation;
+			})
+			.collect();
+
+		let job_id1 = (MultiOrigin::EchoChain(alice_account_id()), initial_job_id + 1);
+
+		assert_ok!(EchoChain::register(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			registration.clone(),
+		));
+		assert_eq!(
+			Some(JobStatus::Open),
+			EchoChainMarketplace::stored_job_status(
+				MultiOrigin::EchoChain(alice_account_id()),
+				initial_job_id + 1
+			)
+		);
+
+		let job_sources: PlannedExecutions<AccountId, <Test as pallet_echochain::Config>::MaxSlots> =
+			processors
+				.iter()
+				.map(|(processor, _)| PlannedExecution {
+					source: processor.clone(),
+					start_delay: 0,
+				})
+				.collect::<Vec<PlannedExecution<AccountId>>>()
+				.try_into()
+				.unwrap();
+
+		let job_match = Match { job_id: job_id1.clone(), sources: job_sources };
+
+		assert_ok!(EchoChainMarketplace::propose_matching(
+			RuntimeOrigin::signed(charlie_account_id()).into(),
+			vec![job_match.clone()].try_into().unwrap(),
+		));
+
+		assert_eq!(
+			Some(JobStatus::Matched),
+			EchoChainMarketplace::stored_job_status(&job_id1.0, &job_id1.1)
+		);
+		assert_eq!(
+			Some(80_000),
+			EchoChainMarketplace::stored_storage_capacity(processor_account_id())
+		);
+		// matcher got rewarded already so job budget decreased
+		assert_eq!(264096000, EchoChainMarketplace::reserved(&job_id1));
+
+		// pretend current time
+		let mut start_time = registration.schedule.start_time;
+		processors.iter().for_each(|(processor, _)| {
+			start_time += 6000;
+			later(start_time);
+			assert_ok!(EchoChainMarketplace::acknowledge_match(
+				RuntimeOrigin::signed(processor.clone()).into(),
+				job_id1.clone(),
+				PubKeys::default(),
+			));
+		});
+
+		assert_eq!(
+			Some(JobStatus::Assigned(processors.len() as u8)),
+			EchoChainMarketplace::stored_job_status(&job_id1.0, &job_id1.1)
+		);
+
+		// job budget decreased by reward worth one execution
+		assert_eq!(264096000, EchoChainMarketplace::reserved(&job_id1));
+		// average reward only updated at end of job
+		assert_eq!(
+			Some(
+				processors
+					.iter()
+					.fold(0u128, |acc, (p, _)| {
+						let asssignment =
+							EchoChainMarketplace::stored_matches(p, job_id1.clone()).unwrap();
+						acc + asssignment.fee_per_execution
+					})
+					.div(processors.len() as u128)
+			),
+			EchoChainMarketplace::average_reward()
+		);
+		// reputation still ~50%
+		assert_eq!(
+			Permill::from_parts(509_803),
+			BetaReputation::<u128>::normalize(
+				EchoChainMarketplace::stored_reputation(processor_account_id()).unwrap()
+			)
+			.unwrap()
+		);
+		processors.iter().zip(0..processors.len()).for_each(|((processor, _), slot)| {
+			assert_eq!(
+				Some(Assignment {
+					execution: ExecutionSpecifier::All,
+					slot: slot as u8,
+					start_delay: 0,
+					fee_per_execution: 1_020_000,
+					acknowledged: true,
+					sla: SLA { total: 12, met: 0 },
+					pub_keys: PubKeys::default(),
+				}),
+				EchoChainMarketplace::stored_matches(processor, job_id1.clone()),
+			);
+			assert_ok!(EchoChainMarketplace::report(
+				RuntimeOrigin::signed(processor.clone()).into(),
+				job_id1.clone(),
+				ExecutionResult::Success(operation_hash())
+			));
+			assert_eq!(
+				Some(Assignment {
+					execution: ExecutionSpecifier::All,
+					slot: slot as u8,
+					start_delay: 0,
+					fee_per_execution: 1_020_000,
+					acknowledged: true,
+					sla: SLA { total: 12, met: 1 },
+					pub_keys: PubKeys::default(),
+				}),
+				EchoChainMarketplace::stored_matches(processor, job_id1.clone()),
+			);
+		});
+
+		// Processors are still assigned after one execution
+		assert_eq!(
+			Some(JobStatus::Assigned(processors.len() as u8)),
+			EchoChainMarketplace::stored_job_status(&job_id1.0, &job_id1.1)
+		);
+
+		assert_eq!(
+			Some(80_000),
+			EchoChainMarketplace::stored_storage_capacity(processor_account_id())
+		);
+
+		assert_ok!(EchoChainMarketplace::report(
+			RuntimeOrigin::signed(processor_account_id()).into(),
+			job_id1.clone(),
+			ExecutionResult::Success(operation_hash())
+		));
+		// job budget decreased by reward worth one execution
+		assert_eq!(258996000, EchoChainMarketplace::reserved(&job_id1));
+
+		// pretend time moved on
+		later(registration.schedule.end_time + 1);
+
+		assert_eq!(258996000, EchoChainMarketplace::reserved(&job_id1));
+
+		processors.iter().for_each(|(processor, _)| {
+			assert_ok!(EchoChainMarketplace::report(
+				RuntimeOrigin::signed(processor.clone()).into(),
+				job_id1.clone(),
+				ExecutionResult::Success(operation_hash())
+			));
+			assert_eq!(None, EchoChainMarketplace::stored_matches(processor, job_id1.clone()),)
+		});
+
+		assert_eq!(Some(1), EchoChainMarketplace::total_assigned());
+	});
+}
+
+#[test]
+fn test_no_match_schedule_overlap() {
+	let now: u64 = 1_671_800_100_000; // 23.12.2022 12:55;
+
+	// 1000 is the smallest amount accepted by T::AssetTransactor::lock_asset for the asset used
+	let ad = advertisement(1000, 1, 100_000, 50_000, 8);
+	let registration1 = JobRegistrationFor::<Test> {
+		script: script(),
+		allowed_sources: None,
+		allow_only_verified_sources: false,
+		schedule: Schedule {
+			duration: 5000,
+			start_time: 1_671_800_400_000, // 23.12.2022 13:00
+			end_time: 1_671_804_000_000,   // 23.12.2022 14:00 (one hour later)
+			interval: 1_800_000,           // 30min -> 2 executions fit
+			max_start_delay: 5000,
+		},
+		memory: 5_000u32,
+		network_requests: 5,
+		storage: 20_000u32,
+		required_modules: JobModules::default(),
+		extra: RegistrationExtra {
+			requirements: JobRequirements {
+				assignment_strategy: AssignmentStrategy::Single(None),
+				slots: 1,
+				reward: 3_000_000 * 2,
+				min_reputation: None,
+				processor_version: None,
+				runtime: Runtime::NodeJS,
+			},
+		},
+	};
+
+	let registration2 = JobRegistrationFor::<Test> {
+		script: script_random_value(),
+		allowed_sources: None,
+		allow_only_verified_sources: false,
+		schedule: Schedule {
+			duration: 5000,
+			start_time: 1_671_802_200_000, // 23.12.2022 13:30
+			end_time: 1_671_805_800_000,   // 23.12.2022 14:30 (one hour later)
+			interval: 1_200_000,           // 20min -> 3 executions fit
+			max_start_delay: 5000,
+		},
+		memory: 5_000u32,
+		network_requests: 5,
+		storage: 20_000u32,
+		required_modules: JobModules::default(),
+		extra: RegistrationExtra {
+			requirements: JobRequirements {
+				assignment_strategy: AssignmentStrategy::Single(None),
+				slots: 1,
+				reward: 3_000_000 * 2,
+				min_reputation: None,
+				processor_version: None,
+				runtime: Runtime::NodeJS,
+			},
+		},
+	};
+
+	ExtBuilder::default().build().execute_with(|| {
+		let initial_job_id = EchoChain::job_id_sequence();
+		let job_id1 = (MultiOrigin::EchoChain(alice_account_id()), initial_job_id + 1);
+		let job_id2 = (MultiOrigin::EchoChain(alice_account_id()), initial_job_id + 2);
+
+		// pretend current time
+		assert_ok!(Timestamp::set(RuntimeOrigin::none(), now));
+		assert_ok!(EchoChainMarketplace::advertise(
+			RuntimeOrigin::signed(processor_account_id()).into(),
+			ad.clone(),
+		));
+
+		// register first job
+		assert_ok!(EchoChain::register(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			registration1.clone(),
+		));
+		assert_eq!(
+			Some(JobStatus::Open),
+			EchoChainMarketplace::stored_job_status(&job_id1.0, &job_id1.1)
+		);
+
+		// register second job
+		assert_ok!(EchoChain::register(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			registration2.clone(),
+		));
+		assert_eq!(
+			Some(JobStatus::Open),
+			EchoChainMarketplace::stored_job_status(&job_id1.0, job_id1.1 + 1)
+		);
+
+		// the first job matches because capacity left
+		let m = Match {
+			job_id: job_id1.clone(),
+			sources: bounded_vec![PlannedExecution {
+				source: processor_account_id(),
+				start_delay: 0,
+			}],
+		};
+		assert_ok!(EchoChainMarketplace::propose_matching(
+			RuntimeOrigin::signed(charlie_account_id()).into(),
+			vec![m.clone()].try_into().unwrap(),
+		));
+
+		// this one does not match anymore
+		let m2 = Match {
+			job_id: job_id2.clone(),
+			sources: bounded_vec![PlannedExecution {
+				source: processor_account_id(),
+				start_delay: 0,
+			}],
+		};
+		assert_err!(
+			EchoChainMarketplace::propose_matching(
+				RuntimeOrigin::signed(charlie_account_id()).into(),
+				vec![m2.clone()].try_into().unwrap(),
+			),
+			Error::<Test>::ScheduleOverlapInMatch
+		);
+
+		assert_eq!(
+			events(),
+			[
+				RuntimeEvent::EchoChainMarketplace(crate::Event::AdvertisementStored(
+					ad.clone(),
+					processor_account_id()
+				)),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: alice_account_id(),
+					to: pallet_echochain_acount(),
+					amount: 12_000_000
+				}),
+				RuntimeEvent::EchoChain(pallet_echochain::Event::JobRegistrationStoredV2(
+					job_id1.clone()
+				)),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: alice_account_id(),
+					to: pallet_echochain_acount(),
+					amount: 18_000_000
+				}),
+				RuntimeEvent::EchoChain(pallet_echochain::Event::JobRegistrationStoredV2((
+					job_id2.0.clone(),
+					job_id2.1.clone()
+				))),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::JobRegistrationMatched(m)),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: pallet_fees_account(),
+					amount: 58800
+				}),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: charlie_account_id(),
+					amount: 137200
+				}),
+				// no match event for second
+			]
+		);
+	});
+}
+
+#[test]
+fn test_no_match_insufficient_reputation() {
+	let now: u64 = 1_671_800_100_000; // 23.12.2022 12:55;
+
+	// 1000 is the smallest amount accepted by T::AssetTransactor::lock_asset for the asset used
+	let ad = advertisement(1000, 1, 100_000, 50_000, 8);
+	let registration1 = JobRegistrationFor::<Test> {
+		script: script(),
+		allowed_sources: None,
+		allow_only_verified_sources: false,
+		schedule: Schedule {
+			duration: 5000,
+			start_time: 1_671_800_400_000, // 23.12.2022 13:00
+			end_time: 1_671_804_000_000,   // 23.12.2022 14:00 (one hour later)
+			interval: 1_800_000,           // 30min -> 2 executions fit
+			max_start_delay: 5000,
+		},
+		memory: 5_000u32,
+		network_requests: 5,
+		storage: 20_000u32,
+		required_modules: JobModules::default(),
+		extra: RegistrationExtra {
+			requirements: JobRequirements {
+				assignment_strategy: AssignmentStrategy::Single(None),
+				slots: 1,
+				reward: 3_000_000 * 2,
+				min_reputation: Some(1_000_000),
+				processor_version: None,
+				runtime: Runtime::NodeJS,
+			},
+		},
+	};
+
+	ExtBuilder::default().build().execute_with(|| {
+		let initial_job_id = EchoChain::job_id_sequence();
+		let job_id = (MultiOrigin::EchoChain(alice_account_id()), initial_job_id + 1);
+
+		// pretend current time
+		assert_ok!(Timestamp::set(RuntimeOrigin::none(), now));
+		assert_ok!(EchoChainMarketplace::advertise(
+			RuntimeOrigin::signed(processor_account_id()).into(),
+			ad.clone(),
+		));
+
+		// register job
+		assert_ok!(EchoChain::register(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			registration1.clone(),
+		));
+		assert_eq!(
+			Some(JobStatus::Open),
+			EchoChainMarketplace::stored_job_status(&job_id.0, job_id.1)
+		);
+
+		// the job matches except insufficient reputation
+		let m = Match {
+			job_id: job_id.clone(),
+			sources: bounded_vec![PlannedExecution {
+				source: processor_account_id(),
+				start_delay: 0,
+			}],
+		};
+		assert_err!(
+			EchoChainMarketplace::propose_matching(
+				RuntimeOrigin::signed(charlie_account_id()).into(),
+				vec![m.clone()].try_into().unwrap(),
+			),
+			Error::<Test>::InsufficientReputationInMatch
+		);
+
+		assert_eq!(
+			events(),
+			[
+				RuntimeEvent::EchoChainMarketplace(crate::Event::AdvertisementStored(
+					ad.clone(),
+					processor_account_id()
+				)),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: alice_account_id(),
+					to: pallet_echochain_acount(),
+					amount: 12_000_000
+				}),
+				RuntimeEvent::EchoChain(pallet_echochain::Event::JobRegistrationStoredV2(
+					job_id.clone()
+				)),
+				// no match event for job
+			]
+		);
+	});
+}
+
+#[test]
+fn test_report_afer_last_report() {
+	let now: u64 = 1_671_800_100_000; // 23.12.2022 12:55;
+
+	// 1000 is the smallest amount accepted by T::AssetTransactor::lock_asset for the asset used
+	let ad = advertisement(1000, 1, 100_000, 50_000, 8);
+	let registration = JobRegistrationFor::<Test> {
+		script: script(),
+		allowed_sources: None,
+		allow_only_verified_sources: false,
+		schedule: Schedule {
+			duration: 5000,
+			start_time: 1_671_800_400_000, // 23.12.2022 13:00
+			end_time: 1_671_804_000_000,   // 23.12.2022 14:00 (one hour later)
+			interval: 1_800_000,           // 30min
+			max_start_delay: 5000,
+		},
+		memory: 5_000u32,
+		network_requests: 5,
+		storage: 20_000u32,
+		required_modules: JobModules::default(),
+		extra: RegistrationExtra {
+			requirements: JobRequirements {
+				assignment_strategy: AssignmentStrategy::Single(None),
+				slots: 1,
+				reward: 3_000_000 * 2,
+				min_reputation: None,
+				processor_version: None,
+				runtime: Runtime::NodeJS,
+			},
+		},
+	};
+
+	ExtBuilder::default().build().execute_with(|| {
+		let initial_job_id = EchoChain::job_id_sequence();
+		let job_id = (MultiOrigin::EchoChain(alice_account_id()), initial_job_id + 1);
+
+		// pretend current time
+		assert_ok!(Timestamp::set(RuntimeOrigin::none(), now));
+		assert_ok!(EchoChainMarketplace::advertise(
+			RuntimeOrigin::signed(processor_account_id()).into(),
+			ad.clone(),
+		));
+		assert_eq!(
+			Some(AdvertisementRestriction {
+				max_memory: 50_000,
+				network_request_quota: 8,
+				storage_capacity: 100_000,
+				allowed_consumers: ad.allowed_consumers.clone(),
+				available_modules: JobModules::default(),
+			}),
+			EchoChainMarketplace::stored_advertisement(processor_account_id())
+		);
+
+		assert_ok!(EchoChain::register(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			registration.clone(),
+		));
+
+		let m = Match {
+			job_id: job_id.clone(),
+			sources: bounded_vec![PlannedExecution {
+				source: processor_account_id(),
+				start_delay: 0,
+			}],
+		};
+		assert_ok!(EchoChainMarketplace::propose_matching(
+			RuntimeOrigin::signed(charlie_account_id()).into(),
+			vec![m.clone()].try_into().unwrap(),
+		));
+
+		assert_ok!(EchoChainMarketplace::acknowledge_match(
+			RuntimeOrigin::signed(processor_account_id()).into(),
+			job_id.clone(),
+			PubKeys::default(),
+		));
+
+		// report twice with success
+		// -------------------------
+
+		// pretend time moved on
+		let mut iter = registration.schedule.iter(0).unwrap();
+		later(iter.next().unwrap() + 1000);
+		assert_ok!(EchoChainMarketplace::report(
+			RuntimeOrigin::signed(processor_account_id()).into(),
+			job_id.clone(),
+			ExecutionResult::Success(operation_hash())
+		));
+
+		// pretend time moved on
+		later(iter.next().unwrap() + 1000);
+		assert_ok!(EchoChainMarketplace::report(
+			RuntimeOrigin::signed(processor_account_id()).into(),
+			job_id.clone(),
+			ExecutionResult::Success(operation_hash())
+		));
+
+		// third report is illegal!
+		later(registration.schedule.range(0).1 + 1000);
+		assert_err!(
+			EchoChainMarketplace::report(
+				RuntimeOrigin::signed(processor_account_id()).into(),
+				job_id.clone(),
+				ExecutionResult::Success(operation_hash())
+			),
+			Error::<Test>::ReportFromUnassignedSource
+		);
+
+		assert_eq!(
+			events(),
+			[
+				RuntimeEvent::EchoChainMarketplace(crate::Event::AdvertisementStored(
+					ad.clone(),
+					processor_account_id()
+				)),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: alice_account_id(),
+					to: pallet_echochain_acount(),
+					amount: 12_000_000
+				}),
+				RuntimeEvent::EchoChain(pallet_echochain::Event::JobRegistrationStoredV2(
+					job_id.clone()
+				)),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::JobRegistrationMatched(m)),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: pallet_fees_account(),
+					amount: 58_800
+				}),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: charlie_account_id(),
+					amount: 137_200
+				}),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::JobRegistrationAssigned(
+					job_id.clone(),
+					processor_account_id(),
+					Assignment {
+						slot: 0,
+						execution: ExecutionSpecifier::All,
+						start_delay: 0,
+						fee_per_execution: 5_020_000,
+						acknowledged: true,
+						sla: SLA { total: 2, met: 0 },
+						pub_keys: PubKeys::default(),
+					}
+				)),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: pallet_fees_account(),
+					amount: 1_506_000
+				}),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: processor_account_id(),
+					amount: 3_514_000
+				}),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::ExecutionSuccess(
+					job_id.clone(),
+					operation_hash()
+				)),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::Reported(
+					job_id.clone(),
+					processor_account_id(),
+					Assignment {
+						slot: 0,
+						execution: ExecutionSpecifier::All,
+						start_delay: 0,
+						fee_per_execution: 5_020_000,
+						acknowledged: true,
+						sla: SLA { total: 2, met: 1 },
+						pub_keys: PubKeys::default(),
+					}
+				)),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: pallet_fees_account(),
+					amount: 1_506_000
+				}),
+				RuntimeEvent::Balances(pallet_balances::Event::Transfer {
+					from: pallet_echochain_acount(),
+					to: processor_account_id(),
+					amount: 3_514_000
+				}),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::ExecutionSuccess(
+					job_id.clone(),
+					operation_hash()
+				)),
+				RuntimeEvent::EchoChainMarketplace(crate::Event::Reported(
+					job_id.clone(),
+					processor_account_id(),
+					Assignment {
+						slot: 0,
+						execution: ExecutionSpecifier::All,
+						start_delay: 0,
+						fee_per_execution: 5_020_000,
+						acknowledged: true,
+						sla: SLA { total: 2, met: 2 },
+						pub_keys: PubKeys::default(),
+					}
+				)),
+			]
+		);
+	});
+}
+
+#[test]
+fn test_deploy_reuse_keys_same_editor() {
+	let now: u64 = 1_671_800_100_000; // 23.12.2022 12:55;
+
+	// 1000 is the smallest amount accepted by T::AssetTransactor::lock_asset for the asset used
+	let ad = advertisement(1000, 1, 100_000, 50_000, 8);
+	let registration1 = JobRegistrationFor::<Test> {
+		script: script(),
+		allowed_sources: None,
+		allow_only_verified_sources: false,
+		schedule: Schedule {
+			duration: 5000,
+			start_time: 1_671_800_400_000, // 23.12.2022 13:00
+			end_time: 1_671_804_000_000,   // 23.12.2022 14:00 (one hour later)
+			interval: 1_800_000,           // 30min
+			max_start_delay: 5000,
+		},
+		memory: 5_000u32,
+		network_requests: 5,
+		storage: 20_000u32,
+		required_modules: JobModules::default(),
+		extra: RegistrationExtra {
+			requirements: JobRequirements {
+				assignment_strategy: AssignmentStrategy::Single(Some(bounded_vec![
+					PlannedExecution { source: processor_account_id(), start_delay: 0 },
+					PlannedExecution { source: processor_2_account_id(), start_delay: 0 }
+				])),
+				slots: 2,
+				reward: 3_000_000 * 2,
+				min_reputation: None,
+				processor_version: None,
+				runtime: Runtime::NodeJS,
+			},
+		},
+	};
+	let registration2 = JobRegistrationFor::<Test> {
+		script: script_random_value(),
+		allowed_sources: None,
+		allow_only_verified_sources: false,
+		schedule: Schedule {
+			duration: 5000,
+			start_time: 1_671_800_400_000, // 23.12.2022 13:00
+			end_time: 1_671_804_000_000,   // 23.12.2022 14:00 (one hour later)
+			interval: 1_800_000,           // 30min
+			max_start_delay: 10_000,
+		},
+		memory: 5_000u32,
+		network_requests: 5,
+		storage: 20_000u32,
+		required_modules: JobModules::default(),
+		extra: RegistrationExtra {
+			requirements: JobRequirements {
+				assignment_strategy: AssignmentStrategy::Single(None),
+				slots: 1,
+				reward: 3_000_000 * 2,
+				min_reputation: None,
+				processor_version: None,
+				runtime: Runtime::NodeJS,
+			},
+		},
+	};
+
+	let key_id =
+		H256::from_slice(&hex!("e2259508cea453c056f02d233c2c94b5aae27b401baabd1bbccaacfb230075a5"));
+	let deployhemt_hash1 =
+		H256::from_slice(&hex!("ae6ad92b93d5b31ea16b8d5ac67ebeabdf16ee65cd6bfd49fa7b5c4366949ca9"));
+	let deployhemt_hash2: H256 =
+		H256::from_slice(&hex!("ff24e620db6e914a3b38895978438dd453579c867f5125e74d8cf68ae244f8c1"));
+
+	ExtBuilder::default().build().execute_with(|| {
+		let initial_job_id = EchoChain::job_id_sequence();
+
+		// pretend current time
+		later(now);
+
+		assert_ok!(EchoChainMarketplace::advertise(
+			RuntimeOrigin::signed(processor_account_id()).into(),
+			ad.clone(),
+		));
+		assert_ok!(EchoChainMarketplace::advertise(
+			RuntimeOrigin::signed(processor_2_account_id()).into(),
+			ad.clone(),
+		));
+
+		let job_id1: (MultiOrigin<sp_core::crypto::AccountId32>, u128) =
+			(MultiOrigin::EchoChain(alice_account_id()), initial_job_id + 1);
+		assert_ok!(EchoChainMarketplace::deploy(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			registration1.clone(),
+			pallet_echochain::ScriptMutability::Mutable(None),
+			None,
+			None
+		));
+
+		assert_eq!(Some(key_id), EchoChainMarketplace::job_key_ids(job_id1.clone()));
+		// assert_eq!(vec![key_id], <crate::pallet::DeploymentKeyIds::<Test>>::iter_keys().collect::<Vec<H256>>());
+		assert_eq!(Some(key_id), EchoChainMarketplace::deployment_key_ids(&deployhemt_hash1));
+
+		// deregister job1 to demonstrate that even then we can extend job1 with job2
+		assert_ok!(EchoChain::deregister(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			job_id1.1
+		));
+
+		// register different script as extension
+		let job_id2: (MultiOrigin<sp_core::crypto::AccountId32>, u128) =
+			(MultiOrigin::EchoChain(alice_account_id()), initial_job_id + 2);
+		assert_ok!(EchoChainMarketplace::deploy(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			registration2,
+			pallet_echochain::ScriptMutability::Mutable(None),
+			Some(job_id1.clone()),
+			None
+		));
+
+		// job key is same for job1 and job2
+		assert_eq!(Some(key_id), EchoChainMarketplace::job_key_ids(job_id2.clone()));
+		// assert_eq!(vec![key_id], <crate::pallet::DeploymentKeyIds::<Test>>::iter_keys().collect::<Vec<H256>>());
+		// job1's deployment key no longer points to any KeyId
+		assert_eq!(None, EchoChainMarketplace::deployment_key_ids(&deployhemt_hash1));
+		// the new deployment_hash of job2 now points to the key_id previously "owned" by the predecessor deployment
+		assert_eq!(Some(key_id), EchoChainMarketplace::deployment_key_ids(&deployhemt_hash2));
+	});
+}
+
+#[test]
+fn test_deploy_reuse_keys_different_editor() {
+	let now: u64 = 1_671_800_100_000; // 23.12.2022 12:55;
+
+	// 1000 is the smallest amount accepted by T::AssetTransactor::lock_asset for the asset used
+	let ad = advertisement(1000, 1, 100_000, 50_000, 8);
+	let registration1 = JobRegistrationFor::<Test> {
+		script: script(),
+		allowed_sources: None,
+		allow_only_verified_sources: false,
+		schedule: Schedule {
+			duration: 5000,
+			start_time: 1_671_800_400_000, // 23.12.2022 13:00
+			end_time: 1_671_804_000_000,   // 23.12.2022 14:00 (one hour later)
+			interval: 1_800_000,           // 30min
+			max_start_delay: 5000,
+		},
+		memory: 5_000u32,
+		network_requests: 5,
+		storage: 20_000u32,
+		required_modules: JobModules::default(),
+		extra: RegistrationExtra {
+			requirements: JobRequirements {
+				assignment_strategy: AssignmentStrategy::Single(Some(bounded_vec![
+					PlannedExecution { source: processor_account_id(), start_delay: 0 },
+					PlannedExecution { source: processor_2_account_id(), start_delay: 0 }
+				])),
+				slots: 2,
+				reward: 3_000_000 * 2,
+				min_reputation: None,
+				processor_version: None,
+				runtime: Runtime::NodeJS,
+			},
+		},
+	};
+	let registration2 = JobRegistrationFor::<Test> {
+		script: script(),
+		allowed_sources: None,
+		allow_only_verified_sources: false,
+		schedule: Schedule {
+			duration: 5000,
+			start_time: 1_671_800_400_000, // 23.12.2022 13:00
+			end_time: 1_671_804_000_000,   // 23.12.2022 14:00 (one hour later)
+			interval: 1_800_000,           // 30min
+			max_start_delay: 10_000,
+		},
+		memory: 5_000u32,
+		network_requests: 5,
+		storage: 20_000u32,
+		required_modules: JobModules::default(),
+		extra: RegistrationExtra {
+			requirements: JobRequirements {
+				assignment_strategy: AssignmentStrategy::Single(None),
+				slots: 1,
+				reward: 3_000_000 * 2,
+				min_reputation: None,
+				processor_version: None,
+				runtime: Runtime::NodeJS,
+			},
+		},
+	};
+
+	let key_id =
+		H256::from_slice(&hex!("e2259508cea453c056f02d233c2c94b5aae27b401baabd1bbccaacfb230075a5"));
+	let deployhemt_hash =
+		H256::from_slice(&hex!("ae6ad92b93d5b31ea16b8d5ac67ebeabdf16ee65cd6bfd49fa7b5c4366949ca9"));
+
+	ExtBuilder::default().build().execute_with(|| {
+		let initial_job_id = EchoChain::job_id_sequence();
+
+		// pretend current time
+		later(now);
+
+		assert_ok!(EchoChainMarketplace::advertise(
+			RuntimeOrigin::signed(processor_account_id()).into(),
+			ad.clone(),
+		));
+		assert_ok!(EchoChainMarketplace::advertise(
+			RuntimeOrigin::signed(processor_2_account_id()).into(),
+			ad.clone(),
+		));
+
+		let job_id1: (MultiOrigin<sp_core::crypto::AccountId32>, u128) =
+			(MultiOrigin::EchoChain(alice_account_id()), initial_job_id + 1);
+		assert_ok!(EchoChainMarketplace::deploy(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			registration1.clone(),
+			pallet_echochain::ScriptMutability::Mutable(Some(bob_account_id())),
+			None,
+			None
+		));
+
+		assert_eq!(Some(key_id), EchoChainMarketplace::job_key_ids(job_id1.clone()));
+		// assert_eq!(vec![key_id], <crate::pallet::DeploymentKeyIds::<Test>>::iter_keys().collect::<Vec<H256>>());
+		assert_eq!(Some(key_id), EchoChainMarketplace::deployment_key_ids(&deployhemt_hash));
+
+		// deregister job1 to demonstrate that even then we can extend job1 with job2
+		assert_ok!(EchoChain::deregister(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			job_id1.1
+		));
+
+		// register same script as extension (is possible even job1's editor is not equals owner)
+		let job_id2: (MultiOrigin<sp_core::crypto::AccountId32>, u128) =
+			(MultiOrigin::EchoChain(alice_account_id()), initial_job_id + 2);
+		assert_ok!(EchoChainMarketplace::deploy(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			registration2,
+			pallet_echochain::ScriptMutability::Mutable(Some(bob_account_id())),
+			Some(job_id1.clone()),
+			None
+		));
+
+		// job key is same for job1 and job2
+		assert_eq!(Some(key_id), EchoChainMarketplace::job_key_ids(job_id2.clone()));
+		// assert_eq!(vec![key_id], <crate::pallet::DeploymentKeyIds::<Test>>::iter_keys().collect::<Vec<H256>>());
+		// job1's equal job2's deployment key still point to same key_id
+		assert_eq!(Some(key_id), EchoChainMarketplace::deployment_key_ids(&deployhemt_hash));
+	});
+}
+
+#[test]
+fn test_deploy_reuse_keys_different_editor_script_edit_fails() {
+	let now: u64 = 1_671_800_100_000; // 23.12.2022 12:55;
+
+	// 1000 is the smallest amount accepted by T::AssetTransactor::lock_asset for the asset used
+	let ad = advertisement(1000, 1, 100_000, 50_000, 8);
+	let registration1 = JobRegistrationFor::<Test> {
+		script: script(),
+		allowed_sources: None,
+		allow_only_verified_sources: false,
+		schedule: Schedule {
+			duration: 5000,
+			start_time: 1_671_800_400_000, // 23.12.2022 13:00
+			end_time: 1_671_804_000_000,   // 23.12.2022 14:00 (one hour later)
+			interval: 1_800_000,           // 30min
+			max_start_delay: 5000,
+		},
+		memory: 5_000u32,
+		network_requests: 5,
+		storage: 20_000u32,
+		required_modules: JobModules::default(),
+		extra: RegistrationExtra {
+			requirements: JobRequirements {
+				assignment_strategy: AssignmentStrategy::Single(Some(bounded_vec![
+					PlannedExecution { source: processor_account_id(), start_delay: 0 },
+					PlannedExecution { source: processor_2_account_id(), start_delay: 0 }
+				])),
+				slots: 2,
+				reward: 3_000_000 * 2,
+				min_reputation: None,
+				processor_version: None,
+				runtime: Runtime::NodeJS,
+			},
+		},
+	};
+	let registration2 = JobRegistrationFor::<Test> {
+		script: script_random_value(),
+		allowed_sources: None,
+		allow_only_verified_sources: false,
+		schedule: Schedule {
+			duration: 5000,
+			start_time: 1_671_800_400_000, // 23.12.2022 13:00
+			end_time: 1_671_804_000_000,   // 23.12.2022 14:00 (one hour later)
+			interval: 1_800_000,           // 30min
+			max_start_delay: 10_000,
+		},
+		memory: 5_000u32,
+		network_requests: 5,
+		storage: 20_000u32,
+		required_modules: JobModules::default(),
+		extra: RegistrationExtra {
+			requirements: JobRequirements {
+				assignment_strategy: AssignmentStrategy::Single(None),
+				slots: 1,
+				reward: 3_000_000 * 2,
+				min_reputation: None,
+				processor_version: None,
+				runtime: Runtime::NodeJS,
+			},
+		},
+	};
+
+	let key_id =
+		H256::from_slice(&hex!("e2259508cea453c056f02d233c2c94b5aae27b401baabd1bbccaacfb230075a5"));
+	let deployhemt_hash1 =
+		H256::from_slice(&hex!("ae6ad92b93d5b31ea16b8d5ac67ebeabdf16ee65cd6bfd49fa7b5c4366949ca9"));
+
+	ExtBuilder::default().build().execute_with(|| {
+		let initial_job_id = EchoChain::job_id_sequence();
+
+		// pretend current time
+		later(now);
+
+		assert_ok!(EchoChainMarketplace::advertise(
+			RuntimeOrigin::signed(processor_account_id()).into(),
+			ad.clone(),
+		));
+		assert_ok!(EchoChainMarketplace::advertise(
+			RuntimeOrigin::signed(processor_2_account_id()).into(),
+			ad.clone(),
+		));
+
+		let job_id1: (MultiOrigin<sp_core::crypto::AccountId32>, u128) =
+			(MultiOrigin::EchoChain(alice_account_id()), initial_job_id + 1);
+		assert_ok!(EchoChainMarketplace::deploy(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			registration1.clone(),
+			pallet_echochain::ScriptMutability::Mutable(Some(bob_account_id())),
+			None,
+			None
+		));
+
+		assert_eq!(Some(key_id), EchoChainMarketplace::job_key_ids(job_id1.clone()));
+		// assert_eq!(vec![key_id], <crate::pallet::DeploymentKeyIds::<Test>>::iter_keys().collect::<Vec<H256>>());
+		assert_eq!(Some(key_id), EchoChainMarketplace::deployment_key_ids(&deployhemt_hash1));
+
+		// deregister job1 to demonstrate that even then we can extend job1 with job2
+		assert_ok!(EchoChain::deregister(
+			RuntimeOrigin::signed(alice_account_id()).into(),
+			job_id1.1
+		));
+
+		// register different script fails because editor of job1 is not equals owner
+		assert_err!(
+			EchoChainMarketplace::deploy(
+				RuntimeOrigin::signed(alice_account_id()).into(),
+				registration2,
+				pallet_echochain::ScriptMutability::Mutable(None),
+				Some(job_id1),
+				None
+			),
+			Error::<Test>::OnlyEditorCanEditScript
+		);
+	});
+}
+
+fn next_block() {
+	if System::block_number() >= 1 {
+		// pallet_echochain_marketplace::on_finalize(System::block_number());
+		Timestamp::on_finalize(System::block_number());
+	}
+	System::set_block_number(System::block_number() + 1);
+	Timestamp::on_initialize(System::block_number());
+}
+
+/// A helper function to move time on in tests. It ensures `Timestamp::set` is only called once per block by advancing the block otherwise.
+fn later(now: u64) {
+	// If this is not the very first timestamp ever set, we always advance the block before setting new time
+	// this is because setting it twice in a block is not legal
+	if Timestamp::get() > 0 {
+		// pretend block was finalized
+		let b = System::block_number();
+		next_block(); // we cannot set time twice in same block
+		assert_eq!(b + 1, System::block_number());
+	}
+	// pretend time moved on
+	assert_ok!(Timestamp::set(RuntimeOrigin::none(), now));
+}

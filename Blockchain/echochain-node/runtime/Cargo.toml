@@ -1,7 +1,7 @@
 [package]
 name = "echochain-node-runtime"
 version = "4.0.0-dev"
-description = "The runtime for EchoChain blockchain."
+description = "The runtime for EchoChain blockchain - a decentralized music sample marketplace"
 authors = ["EchoChain Team <info@echochain.xyz>"]
 homepage = "https://echochain.xyz/"
 edition = "2021"
@@ -9,60 +9,81 @@ license = "MIT-0"
 publish = false
 repository = "https://github.com/echochain/echochain-node/"
 
+# Version Compatibility
+# - Requires Substrate v28.0.0 (FRAME v2)
+# - Polkadot SDK compatibility: v0.9.42+
+# - Rust toolchain: nightly-2023-10-01 or later
+
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
+# Core encoding/decoding and type information
 codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = ["derive"] }
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
 
-pallet-aura = { default-features = false, version = "28.0.0" }
-pallet-balances = { default-features = false, version = "28.0.0" }
-frame-support = { default-features = false, version = "28.0.0" }
-pallet-grandpa = { default-features = false, version = "28.0.0" }
-pallet-sudo = { default-features = false, version = "28.0.0" }
-frame-system = { default-features = false, version = "28.0.0" }
+# FRAME Pallets (v28.0.0)
+pallet-aura = { default-features = false, version = "28.0.0" } # Block production
+pallet-balances = { default-features = false, version = "28.0.0" } # Accounts and transfers
+frame-support = { default-features = false, version = "28.0.0" } # FRAME support library
+pallet-grandpa = { default-features = false, version = "28.0.0" } # Finality gadget
+pallet-sudo = { default-features = false, version = "28.0.0" } # Root admin access
+frame-system = { default-features = false, version = "28.0.0" } # Core system
 
-pallet-timestamp = { default-features = false, version = "28.0.0" }
-pallet-transaction-payment = { default-features = false, version = "28.0.0" }
-pallet-sample-registry = { version = "4.0.0-dev", default-features = false, path = "../pallets/sample-registry" }
-pallet-democracy = { default-features = false, version = "28.0.0" }
-pallet-collective = { default-features = false, version = "28.0.0" }
-pallet-treasury = { default-features = false, version = "28.0.0" }
-pallet-scheduler = { default-features = false, version = "28.0.0" }
-# pallet-proof-of-contribution = { version = "4.0.0-dev", default-features = false, path = "../pallets/proof-of-contribution" }
-frame-executive = { default-features = false, version = "28.0.0" }
-sp-api = { default-features = false, version = "28.0.0" }
-sp-block-builder = { default-features = false, version = "28.0.0" }
-sp-consensus-aura = { default-features = false, version = "0.10.0" }
-sp-consensus-grandpa = { default-features = false, version = "0.10.0" }
-sp-core = { default-features = false, version = "28.0.0" }
-sp-inherents = { default-features = false, version = "28.0.0" }
-sp-offchain = { default-features = false, version = "28.0.0" }
-sp-runtime = { default-features = false, version = "28.0.0" }
-sp-session = { default-features = false, version = "28.0.0" }
-sp-std = { default-features = false, version = "28.0.0" }
-sp-storage = { default-features = false, version = "28.0.0" }
-sp-transaction-pool = { default-features = false, version = "28.0.0" }
-sp-version = { default-features = false, version = "28.0.0" }
+# Application-Specific Pallets
+pallet-timestamp = { default-features = false, version = "28.0.0" } # Block time tracking
+pallet-transaction-payment = { default-features = false, version = "28.0.0" } # Fee handling
+pallet-democracy = { default-features = false, version = "28.0.0" } # On-chain governance
+pallet-collective = { default-features = false, version = "28.0.0" } # Council voting
+pallet-treasury = { default-features = false, version = "28.0.0" } # Community funds
+pallet-scheduler = { default-features = false, version = "28.0.0" } # Task scheduling
 
-# Used for the node template's RPCs
-frame-system-rpc-runtime-api = { default-features = false, version = "28.0.0" }
-pallet-transaction-payment-rpc-runtime-api = { default-features = false, version = "28.0.0" }
+# Custom EchoChain Pallets
+pallet-sample-registry = { default-features = false, path = "../pallets/sample-registry" } # Audio sample tracking
+pallet-content-rewards = { default-features = false, path = "../pallets/content-rewards" } # Creator rewards
+pallet-network-rewards = { default-features = false, path = "../pallets/network-rewards" } # Node operator rewards
+pallet-p2p-integration = { default-features = false, path = "../pallets/p2p-integration" } # File sharing
+pallet-echochain-compute = { default-features = false, path = "../pallets/echochain-compute" } # Distributed compute
+pallet-echochain-marketplace = { default-features = false, path = "../pallets/echochain-marketplace" } # Sample marketplace
+# pallet-proof-of-contribution = { version = "4.0.0-dev", default-features = false, path = "../pallets/proof-of-contribution" } # Disabled pending update
 
-# Used for runtime benchmarking
-frame-benchmarking = { default-features = false, version = "28.0.0", optional = true }
-frame-system-benchmarking = { default-features = false, version = "28.0.0", optional = true }
+# Substrate Primitives (v28.0.0)
+frame-executive = { default-features = false, version = "28.0.0" } # Runtime execution
+sp-api = { default-features = false, version = "28.0.0" } # Runtime APIs
+sp-block-builder = { default-features = false, version = "28.0.0" } # Block construction
+sp-consensus-aura = { default-features = false, version = "0.10.0" } # Aura consensus
+sp-consensus-grandpa = { default-features = false, version = "0.10.0" } # Grandpa finality
+sp-core = { default-features = false, version = "28.0.0" } # Core primitives
+sp-inherents = { default-features = false, version = "28.0.0" } # Inherent data
+sp-offchain = { default-features = false, version = "28.0.0" } # Offchain features
+sp-runtime = { default-features = false, version = "28.0.0" } # Runtime primitives
+sp-session = { default-features = false, version = "28.0.0" } # Session keys
+sp-std = { default-features = false, version = "28.0.0" } # Standard library
+sp-storage = { default-features = false, version = "28.0.0" } # Storage utilities
+sp-transaction-pool = { default-features = false, version = "28.0.0" } # Transaction pool
+sp-version = { default-features = false, version = "28.0.0" } # Versioning
 
-# Local Dependencies
-pallet-template = { version = "4.0.0-dev", default-features = false, path = "../pallets/template" }
+# RPC Support
+frame-system-rpc-runtime-api = { default-features = false, version = "28.0.0" } # System RPCs
+pallet-transaction-payment-rpc-runtime-api = { default-features = false, version = "28.0.0" } # Payment RPCs
+
+# Benchmarking (Optional)
+frame-benchmarking = { default-features = false, version = "28.0.0", optional = true } # Benchmark macros
+frame-system-benchmarking = { default-features = false, version = "28.0.0", optional = true } # System benchmarks
+
+# Local Development
+pallet-template = { version = "4.0.0-dev", default-features = false, path = "../pallets/template" } # Starter template
 
 [build-dependencies]
 substrate-wasm-builder = { version = "0.10.0", optional = true }
 
 [features]
+# Standard compilation target (native + WASM)
 default = [ "std" ]
+
+# Standard library support (native compilation)
 std = [
+	# Core dependencies
 	"codec/std",
 	"frame-benchmarking?/std",
 	"frame-executive/std",
@@ -71,7 +92,7 @@ std = [
 	"frame-system-rpc-runtime-api/std",
 	"frame-system/std",
 	
-	
+	# FRAME pallets
 	"pallet-aura/std",
 	"pallet-balances/std",
 	"pallet-grandpa/std",
@@ -81,11 +102,19 @@ std = [
 	"pallet-collective/std",
 	"pallet-treasury/std",
 	
+	# Application pallets
 	"pallet-timestamp/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
 	"pallet-transaction-payment/std",
 	"pallet-sample-registry/std",
+	"pallet-content-rewards/std",
+	"pallet-network-rewards/std",
+	"pallet-p2p-integration/std",
+	"pallet-echochain-compute/std",
+	"pallet-echochain-marketplace/std",
 	"pallet-scheduler/std",
+	
+	# Primitives
 	"scale-info/std",
 	"sp-api/std",
 	"sp-block-builder/std",
@@ -100,8 +129,12 @@ std = [
 	"sp-storage/std",
 	"sp-transaction-pool/std",
 	"sp-version/std",
+	
+	# Build tool
 	"substrate-wasm-builder",
 ]
+
+# Runtime benchmarking support
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
@@ -116,4 +149,5 @@ runtime-benchmarks = [
 	"sp-runtime/runtime-benchmarks",
 ]
 
-experimental = [ "pallet-aura/experimental" ]
+# Experimental features (unstable)
+experimental = [ "pallet-aura/experimental" ] # Aura experimental improvements

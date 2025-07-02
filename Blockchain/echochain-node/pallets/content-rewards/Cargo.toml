@@ -1,5 +1,5 @@
 [package]
-name = "pallet-sample-registry"
+name = "pallet-content-rewards"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,6 +7,7 @@ edition = "2021"
 frame-support = { default-features = false, version = "4.0.0-dev" }
 frame-system = { default-features = false, version = "4.0.0-dev" }
 sp-std = { default-features = false, version = "4.0.0-dev" }
+pallet-sample-registry = { path = "../sample-registry", default-features = false }
 frame-benchmarking = { default-features = false, optional = true, path = "../../../../polkadot-sdk/substrate/frame/benchmarking" }
 
 [features]
@@ -15,6 +16,7 @@ std = [
     "frame-support/std",
     "frame-system/std",
     "sp-std/std",
+    "pallet-sample-registry/std",
     "frame-benchmarking?/std",
 ]
 runtime-benchmarks = [

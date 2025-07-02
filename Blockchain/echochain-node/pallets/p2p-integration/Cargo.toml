@@ -1,5 +1,5 @@
 [package]
-name = "pallet-sample-registry"
+name = "pallet-p2p-integration"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,6 +7,9 @@ edition = "2021"
 frame-support = { default-features = false, version = "4.0.0-dev" }
 frame-system = { default-features = false, version = "4.0.0-dev" }
 sp-std = { default-features = false, version = "4.0.0-dev" }
+pallet-network-rewards = { path = "../network-rewards", default-features = false }
+pallet-echochain-compute = { path = "../echochain-compute", default-features = false }
+pallet-echochain-marketplace = { path = "../echochain-marketplace", default-features = false }
 frame-benchmarking = { default-features = false, optional = true, path = "../../../../polkadot-sdk/substrate/frame/benchmarking" }
 
 [features]
@@ -15,6 +18,9 @@ std = [
     "frame-support/std",
     "frame-system/std",
     "sp-std/std",
+    "pallet-network-rewards/std",
+    "pallet-echochain-compute/std",
+    "pallet-echochain-marketplace/std",
     "frame-benchmarking?/std",
 ]
 runtime-benchmarks = [

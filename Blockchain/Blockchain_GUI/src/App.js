@@ -6,6 +6,7 @@ import Network from './components/Network';
 import Transfers from './components/Transfers';
 import Tests from './components/Tests';
 import Faucet from './components/Faucet';
+import AccountStatus from './components/AccountStatus';
 import './App.css';
 
 function App() {
@@ -14,6 +15,7 @@ function App() {
       <div className="App">
         <header className="App-header">
           <h1>Echochain Blockchain Management GUI</h1>
+          <AccountStatus />
           <nav>
             <ul>
               <li><Link to="/">Home</Link></li>

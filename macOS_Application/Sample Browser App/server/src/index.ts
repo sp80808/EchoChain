@@ -6,6 +6,7 @@ import authRoutes from './routes/auth';
 import sampleRoutes from './routes/samples';
 import userRoutes from './routes/users';
 import { setupRewardSystem } from './utils/rewardSystem';
+import { logger } from './utils/logger';
 
 const app = express();
 const port = process.env.PORT || 3001;

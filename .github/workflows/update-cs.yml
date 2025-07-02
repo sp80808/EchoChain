@@ -1,0 +1,38 @@
+name: Update Chainstack Endpoints in .env
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master, cursor] # or your default branch
+
+jobs:
+  update-env:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: macOS_Application/Sample Browser App/server
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install node-fetch
+
+      - name: Update .env with Chainstack endpoints
+        env:
+          CHAINSTACK_API_TOKEN: ${{ secrets.CHAINSTACK_API_TOKEN }}
+          CHAINSTACK_NODE_ID: ${{ secrets.CHAINSTACK_NODE_ID }}
+        run: node update-chainstack-env.js
+
+      - name: Commit and push .env (optional, only if you want to store .env in repo)
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+          git add .env
+          git commit -m "Update .env with latest Chainstack endpoints" || echo "No changes to commit"
+          git push
+        if: always()

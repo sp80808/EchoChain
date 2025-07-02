@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { registerSample } from '../services/sampleService';
 import { useAccount } from '../contexts/AccountContext';
+import { useNotification } from '../contexts/NotificationContext';
 import LoadingSpinner from './LoadingSpinner';
+import { TextField, Button, Typography, Box } from '@mui/material';
 
 function SampleUpload() {
   const [form, setForm] = useState({
@@ -15,8 +17,8 @@ function SampleUpload() {
     blockchainHash: ''
   });
   const [status, setStatus] = useState('idle'); // idle, submitting, success, error
-  const [error, setError] = useState(null);
   const { account, jwt } = useAccount();
+  const { showSuccess, showError, showInfo, showBlockchainTransaction } = useNotification();
 
   const handleChange = e => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -25,14 +27,28 @@ function SampleUpload() {
   const handleSubmit = async e => {
     e.preventDefault();
     setStatus('submitting');
-    setError(null);
+    
+    showInfo('Starting sample registration...', { persist: true });
+    
     try {
-      await registerSample({
+      const result = await registerSample({
         ...form,
         price: Number(form.price),
         ownerAddress: account ? account.address : '',
       }, jwt, account);
+      
       setStatus('success');
+      
+      if (result && result.blockchainHash) {
+        showBlockchainTransaction(
+          'Sample registered successfully on blockchain!',
+          result.blockchainHash
+        );
+      } else {
+        showSuccess('Sample registered successfully!');
+      }
+      
+      // Reset form
       setForm({
         id: '',
         title: '',
@@ -44,31 +60,125 @@ function SampleUpload() {
         blockchainHash: ''
       });
     } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Registration failed. Please check your connection and try again.');
+      const errorMessage = err.response?.data?.message || err.message || 'Registration failed. Please check your connection and try again.';
       setStatus('error');
+      showError(`Registration failed: ${errorMessage}`);
     }
   };
 
   return (
-    <div style={{ margin: '2em 0' }}>
-      <h2>Register Sample</h2>
+    <Box sx={{ mt: 4 }}>
+      <Typography variant="h5" gutterBottom>Register Sample</Typography>
       <form onSubmit={handleSubmit}>
-        <input name="id" placeholder="ID" value={form.id} onChange={handleChange} required /> <br />
-        <input name="title" placeholder="Title" value={form.title} onChange={handleChange} required /> <br />
-        <input name="artist" placeholder="Artist" value={form.artist} onChange={handleChange} required /> <br />
-        <input name="duration" placeholder="Duration (seconds)" value={form.duration} onChange={handleChange} required /> <br />
-        <input name="category" placeholder="Category" value={form.category} onChange={handleChange} required /> <br />
-        <input name="p2pContentId" placeholder="P2P Content ID" value={form.p2pContentId} onChange={handleChange} required /> <br />
-        <input name="price" placeholder="Price" type="number" value={form.price} onChange={handleChange} required /> <br />
-        <input name="blockchainHash" placeholder="Blockchain Hash" value={form.blockchainHash} onChange={handleChange} required /> <br />
-        <input name="ownerAddress" value={account ? account.address : ''} readOnly disabled style={{ background: '#eee' }} /> <br />
-        <button type="submit" disabled={status === 'submitting' || !account}>Register</button>
+        <TextField
+          name="id"
+          label="ID"
+          value={form.id}
+          onChange={handleChange}
+          required
+          fullWidth
+          margin="normal"
+        />
+        <TextField
+          name="title"
+          label="Title"
+          value={form.title}
+          onChange={handleChange}
+          required
+          fullWidth
+          margin="normal"
+        />
+        <TextField
+          name="artist"
+          label="Artist"
+          value={form.artist}
+          onChange={handleChange}
+          required
+          fullWidth
+          margin="normal"
+        />
+        <TextField
+          name="duration"
+          label="Duration (seconds)"
+          value={form.duration}
+          onChange={handleChange}
+          required
+          fullWidth
+          margin="normal"
+        />
+        <TextField
+          name="category"
+          label="Category"
+          value={form.category}
+          onChange={handleChange}
+          required
+          fullWidth
+          margin="normal"
+        />
+        <TextField
+          name="p2pContentId"
+          label="P2P Content ID"
+          value={form.p2pContentId}
+          onChange={handleChange}
+          required
+          fullWidth
+          margin="normal"
+        />
+        <TextField
+          name="price"
+          label="Price"
+          type="number"
+          value={form.price}
+          onChange={handleChange}
+          required
+          fullWidth
+          margin="normal"
+        />
+        <TextField
+          name="blockchainHash"
+          label="Blockchain Hash"
+          value={form.blockchainHash}
+          onChange={handleChange}
+          required
+          fullWidth
+          margin="normal"
+        />
+        <TextField
+          name="ownerAddress"
+          label="Owner Address"
+          value={account ? account.address : ''}
+          InputProps={{
+            readOnly: true,
+          }}
+          disabled
+          fullWidth
+          margin="normal"
+          sx={{ backgroundColor: '#f5f5f5' }}
+        />
+        <Button
+          type="submit"
+          variant="contained"
+          color="primary"
+          disabled={status === 'submitting' || !account}
+          sx={{ mt: 2 }}
+        >
+          Register
+        </Button>
       </form>
-      {!account && <div style={{ color: 'red' }}>Connect your wallet to register a sample.</div>}
-      {status === 'submitting' && <><LoadingSpinner /><div>Registering sample on-chain. Please wait, this may take a few moments...</div></>}
-      {status === 'success' && <div style={{ color: 'green' }}>Sample registered successfully! (Backend & Blockchain confirmed)</div>}
-      {status === 'error' && <div style={{ color: 'red' }}>{error}</div>}
-    </div>
+      {!account && (
+        <Typography variant="body2" color="error" sx={{ mt: 2 }}>
+          Connect your wallet to register a sample.
+        </Typography>
+      )}
+      {status === 'submitting' && (
+        <Box sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
+          <LoadingSpinner />
+          <Typography variant="body1" sx={{ ml: 2 }}>
+            Registering sample on-chain. Please wait, this may take a few moments...
+          </Typography>
+        </Box>
+      )}
+    </Box>
   );
 }
 

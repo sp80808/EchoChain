@@ -1,107 +1,227 @@
-import cron from 'node-cron';
-import Sample from '../models/Sample';
-import User from '../auth/User';
+/**
+ * Reward system for EchoChain
+ * Handles content rewards and network rewards distribution
+ */
 
-const BASE_REWARD = 50; // Base ECHO for eligible creators
-const SAMPLE_USAGE_MULTIPLIER = 5; // ECHO per high-usage sample
-const REFERRAL_MULTIPLIER = 10; // ECHO per referred user
-const MIN_USAGE_COUNT = 10; // Minimum usage count for a sample to be considered 'high-usage'
-import { distributeContentRewardsOnBlockchain, distributeNetworkRewardsOnBlockchain } from './blockchain';
+import { logger } from './logger';
+import { 
+  distributeContentRewardsOnBlockchain, 
+  distributeNetworkRewardsOnBlockchain 
+} from './blockchain';
 
-export const setupRewardSystem = () => {
-  // Schedule content rewards check for the first day of every month at midnight
-  cron.schedule('0 0 1 * *', async () => {
-    console.log('Running monthly content reward check...');
-    try {
-      const oneMonthAgo = new Date();
-      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+export interface ContentReward {
+  creatorId: string;
+  amount: number;
+  reason: string;
+}
 
-      // Find users who uploaded at least 5 approved samples in the last month
-      // Find all approved samples created in the last month
-      const approvedSamples = await Sample.find({
-        status: 'approved',
-        createdAt: { $gte: oneMonthAgo },
-      }).populate('creator');
+export interface NetworkReward {
+  contributorAddress: string;
+  amount: number;
+  bytesUploaded: number;
+  bytesDownloaded: number;
+}
 
-      // Group samples by creator and count high-usage samples
-      const creatorData: { [key: string]: { creatorId: string; highUsageSamples: number; referredUsers: number } } = {};
+class RewardSystem {
+  private contentRewardInterval: NodeJS.Timeout | null = null;
+  private networkRewardInterval: NodeJS.Timeout | null = null;
+  
+  // Configuration
+  private readonly CONTENT_REWARD_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
+  private readonly NETWORK_REWARD_INTERVAL = 7 * 24 * 60 * 60 * 1000; // 7 days
+  private readonly MIN_APPROVED_SAMPLES = 5; // Minimum samples needed for content rewards
+  private readonly CONTENT_REWARD_AMOUNT = 100; // ECHO tokens per eligible creator
+  private readonly NETWORK_REWARD_POOL = 1000; // Total ECHO tokens for network rewards per period
 
-      for (const sample of approvedSamples) {
-        const creatorId = sample.creator._id.toString();
-        if (!creatorData[creatorId]) {
-          creatorData[creatorId] = { creatorId, highUsageSamples: 0, referredUsers: 0 };
-        }
-        if (sample.usageCount >= MIN_USAGE_COUNT) {
-          creatorData[creatorId].highUsageSamples++;
-        }
-      }
-
-      // Find referred users for each creator
-      for (const creatorId in creatorData) {
-        const referredUsers = await User.countDocuments({ referrerId: creatorId });
-        creatorData[creatorId].referredUsers = referredUsers;
-      }
-
-      for (const creatorId in creatorData) {
-        const { highUsageSamples, referredUsers } = creatorData[creatorId];
-        let rewardAmount = BASE_REWARD;
-        rewardAmount += highUsageSamples * SAMPLE_USAGE_MULTIPLIER;
-        rewardAmount += referredUsers * REFERRAL_MULTIPLIER;
-
-        console.log(`Creator ${creatorId} is eligible for content rewards: ${rewardAmount} ECHO.`);
-        await distributeContentRewardsOnBlockchain(
-          creatorId,
-          rewardAmount
-        );
-        console.log(`Content reward reported for creator ${creatorId}`);
-      }
-    } catch (error) {
-      console.error('Error during monthly content reward check:', error);
-    }
-  });
-
-  // Schedule network rewards check (e.g., daily for testing)
-  cron.schedule('0 0 * * *', async () => {
-    console.log('Running daily network reward check...');
-    try {
-      // In a real scenario, this would involve fetching network contribution data
-      // from a decentralized source or client reports.
-      // For now, we'll simulate a single contributor receiving a reward.
-      const simulatedContributorAddress = "ECHO_CONTRIBUTOR_SIMULATED";
-      const simulatedRewardAmount = 50; // Assuming 50 ECHO for network contribution
-
-      await distributeNetworkRewardsOnBlockchain(
-        simulatedContributorAddress,
-        simulatedRewardAmount
-      );
-      console.log(`Network reward reported for ${simulatedContributorAddress}`);
-    } catch (error) {
-      console.error('Error during daily network reward check:', error);
-    }
-  });
-
-  console.log('Reward system scheduled.');
-};
-
-export const calculateUserFaucetAmount = async (userId: string): Promise<number> => {
-  try {
-    // Calculate high-usage samples for the specific user
-    const highUsageSamplesCount = await Sample.countDocuments({
-      creator: userId,
-      status: 'approved',
-      usageCount: { $gte: MIN_USAGE_COUNT },
-    });
-
-    // Calculate referred users for the specific user
-    const referredUsersCount = await User.countDocuments({ referrerId: userId });
-
-    let faucetAmount = BASE_REWARD;
-    faucetAmount += highUsageSamplesCount * SAMPLE_USAGE_MULTIPLIER;
-    faucetAmount += referredUsersCount * REFERRAL_MULTIPLIER;
-
-    return faucetAmount;
-  } catch (error) {
-    console.error('Error calculating user faucet amount:', error);
-    return 0; // Return 0 on error
+  /**
+   * Initialize the reward system with periodic distributions
+   */
+  public start(): void {
+    logger.info('Starting EchoChain reward system...');
+    
+    // Start content rewards distribution
+    this.contentRewardInterval = setInterval(
+      () => this.distributeContentRewards(),
+      this.CONTENT_REWARD_INTERVAL
+    );
+    
+    // Start network rewards distribution
+    this.networkRewardInterval = setInterval(
+      () => this.distributeNetworkRewards(),
+      this.NETWORK_REWARD_INTERVAL
+    );
+    
+    // Run initial distribution (with delay to allow server to fully start)
+    setTimeout(() => {
+      this.distributeContentRewards();
+      this.distributeNetworkRewards();
+    }, 30000); // 30 seconds delay
+    
+    logger.info('Reward system started successfully');
   }
-};
+
+  /**
+   * Stop the reward system
+   */
+  public stop(): void {
+    if (this.contentRewardInterval) {
+      clearInterval(this.contentRewardInterval);
+      this.contentRewardInterval = null;
+    }
+    
+    if (this.networkRewardInterval) {
+      clearInterval(this.networkRewardInterval);
+      this.networkRewardInterval = null;
+    }
+    
+    logger.info('Reward system stopped');
+  }
+
+  /**
+   * Distribute content rewards to eligible creators
+   */
+  private async distributeContentRewards(): Promise<void> {
+    try {
+      logger.info('Starting content rewards distribution...');
+      
+      // TODO: Implement logic to fetch eligible creators from database
+      // For now, using placeholder logic
+      const eligibleCreators = await this.getEligibleCreators();
+      
+      for (const creator of eligibleCreators) {
+        const success = await distributeContentRewardsOnBlockchain(
+          creator.id,
+          this.CONTENT_REWARD_AMOUNT
+        );
+        
+        if (success) {
+          logger.info(`Content reward distributed to creator ${creator.id}: ${this.CONTENT_REWARD_AMOUNT} ECHO`);
+        } else {
+          logger.error(`Failed to distribute content reward to creator ${creator.id}`);
+        }
+      }
+      
+      logger.info(`Content rewards distribution completed. ${eligibleCreators.length} creators rewarded.`);
+    } catch (error) {
+      logger.error('Error during content rewards distribution:', error);
+    }
+  }
+
+  /**
+   * Distribute network rewards to contributors
+   */
+  private async distributeNetworkRewards(): Promise<void> {
+    try {
+      logger.info('Starting network rewards distribution...');
+      
+      // TODO: Implement logic to fetch network contributors from database
+      // For now, using placeholder logic
+      const contributors = await this.getNetworkContributors();
+      
+      if (contributors.length === 0) {
+        logger.info('No network contributors found for this period');
+        return;
+      }
+      
+      // Calculate total contribution for proportional distribution
+      const totalContribution = contributors.reduce(
+        (sum, contributor) => sum + contributor.bytesUploaded + contributor.bytesDownloaded,
+        0
+      );
+      
+      for (const contributor of contributors) {
+        const contribution = contributor.bytesUploaded + contributor.bytesDownloaded;
+        const rewardAmount = Math.floor(
+          (contribution / totalContribution) * this.NETWORK_REWARD_POOL
+        );
+        
+        if (rewardAmount > 0) {
+          const success = await distributeNetworkRewardsOnBlockchain(
+            contributor.address,
+            rewardAmount
+          );
+          
+          if (success) {
+            logger.info(`Network reward distributed to ${contributor.address}: ${rewardAmount} ECHO`);
+          } else {
+            logger.error(`Failed to distribute network reward to ${contributor.address}`);
+          }
+        }
+      }
+      
+      logger.info(`Network rewards distribution completed. ${contributors.length} contributors rewarded.`);
+    } catch (error) {
+      logger.error('Error during network rewards distribution:', error);
+    }
+  }
+
+  /**
+   * Get eligible creators for content rewards
+   * TODO: Replace with actual database query
+   */
+  private async getEligibleCreators(): Promise<Array<{ id: string; approvedSamples: number }>> {
+    // Placeholder implementation
+    return [
+      { id: 'creator1@example.com', approvedSamples: 10 },
+      { id: 'creator2@example.com', approvedSamples: 7 },
+      { id: 'creator3@example.com', approvedSamples: 15 }
+    ].filter(creator => creator.approvedSamples >= this.MIN_APPROVED_SAMPLES);
+  }
+
+  /**
+   * Get network contributors for network rewards
+   * TODO: Replace with actual database query
+   */
+  private async getNetworkContributors(): Promise<Array<{
+    address: string;
+    bytesUploaded: number;
+    bytesDownloaded: number;
+  }>> {
+    // Placeholder implementation
+    return [
+      { address: 'ECHO_ADDRESS_1', bytesUploaded: 1000000, bytesDownloaded: 500000 },
+      { address: 'ECHO_ADDRESS_2', bytesUploaded: 750000, bytesDownloaded: 800000 },
+      { address: 'ECHO_ADDRESS_3', bytesUploaded: 2000000, bytesDownloaded: 300000 }
+    ];
+  }
+
+  /**
+   * Manually trigger content rewards distribution (for testing/admin)
+   */
+  public async triggerContentRewards(): Promise<void> {
+    logger.info('Manually triggering content rewards distribution...');
+    await this.distributeContentRewards();
+  }
+
+  /**
+   * Manually trigger network rewards distribution (for testing/admin)
+   */
+  public async triggerNetworkRewards(): Promise<void> {
+    logger.info('Manually triggering network rewards distribution...');
+    await this.distributeNetworkRewards();
+  }
+}
+
+// Create singleton instance
+const rewardSystem = new RewardSystem();
+
+/**
+ * Setup and start the reward system
+ */
+export function setupRewardSystem(): void {
+  rewardSystem.start();
+}
+
+/**
+ * Stop the reward system
+ */
+export function stopRewardSystem(): void {
+  rewardSystem.stop();
+}
+
+/**
+ * Get access to the reward system instance for manual operations
+ */
+export function getRewardSystem(): RewardSystem {
+  return rewardSystem;
+}

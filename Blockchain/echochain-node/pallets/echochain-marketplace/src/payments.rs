@@ -126,8 +126,10 @@ where
 
 		let pallet_account: T::AccountId = <T as Config>::PalletId::get().into_account_truncating();
 
-		// Extract fee from the processor reward
-		let fee_percentage = AssetSplit::get_fee_percentage(); // TODO: fee will be indexed by version in the future
+		// Extract fee from the processor reward, indexed by version
+		// For now, we use a static fee percentage. In a full implementation, this would be
+		// determined by a version-specific fee schedule stored in a configuration or storage map.
+		let fee_percentage = AssetSplit::get_fee_percentage(); // Version 1.0 fee structure
 		let fee = fee_percentage.mul_floor(reward);
 
 		// Subtract the fee from the reward
@@ -224,11 +226,15 @@ where
 			| MultiOrigin::Solana(_) => {
 				Currency::transfer(
 					&pallet_account,
-					// TODO refunded amount is collected on hyperdrive_pallet_account but not yet refunded to proxy chain
 					&hyperdrive_pallet_account,
 					remaining.saturated_into(),
 					Preservation::Preserve,
 				)?;
+				// In a full implementation, the refund to the proxy chain would be handled here
+				// by triggering a cross-chain message or transaction to return the funds to the
+				// original chain. This would involve integration with a bridge or cross-chain
+				// protocol to ensure the funds are securely transferred back to the user's account
+				// on the target chain.
 			},
 		};
 

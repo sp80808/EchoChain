@@ -494,6 +494,8 @@ pub mod pallet {
             NoConsensus,
             /// Verification failed
             VerificationFailed,
+            /// Network request failed
+            NetworkRequestFailed,
         }
 
         // Updated verify_zkp function
@@ -615,15 +617,15 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
-        fn fetch_and_log_external_data(task_id: u32, endpoint: &[u8]) -> Result<(), &'static str> {
-            let endpoint_str = sp_std::str::from_utf8(endpoint).map_err(|_| "Invalid endpoint URL")?;
+        fn fetch_and_log_external_data(task_id: u32, endpoint: &[u8]) -> Result<(), Error<T>> {
+            let endpoint_str = sp_std::str::from_utf8(endpoint).map_err(|_| Error::<T>::NetworkRequestFailed)?;
             log::info!("Fetching data for task {} from endpoint: {}", task_id, endpoint_str);
 
-            let response = reqwest::blocking::get(endpoint_str).map_err(|_| "Failed to fetch data")?;
-            let data = response.bytes().map_err(|_| "Failed to read response bytes")?.to_vec();
+            let response = reqwest::blocking::get(endpoint_str).map_err(|_| Error::<T>::NetworkRequestFailed)?;
+            let data = response.bytes().map_err(|_| Error::<T>::NetworkRequestFailed)?.to_vec();
 
             let call = Call::submit_external_data { task_id, data };
-            let _ = rt_offchain::submit_unsigned_transaction(call.into()).map_err(|_| "Failed to submit unsigned transaction");
+            let _ = rt_offchain::submit_unsigned_transaction(call.into()).map_err(|_| Error::<T>::NetworkRequestFailed);
 
             Ok(())
         }

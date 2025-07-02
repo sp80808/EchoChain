@@ -21,7 +21,7 @@ members = [
     "Blockchain/echochain-node/pallets/proof-of-contribution",
     "Blockchain/echochain-node/pallets/royalty-distribution",
     "Blockchain/echochain-node/pallets/sample-registry",
-    "Blockchain/echochain-node/pallets/template", "isolated-echochain-compute",
+    "Blockchain/echochain-node/pallets/template", "isolated-echochain-compute", "temp_isolated_dev/isolated-echochain-compute",
 ]
 
 [workspace.lints.rust]

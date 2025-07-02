@@ -1,12 +1,14 @@
-# Echochain Documentation Index
+# EchoChain Documentation Index
 
-Welcome to the Echochain project documentation! This index provides links and descriptions for all major documentation files in the `docs/` folder. Use this as your starting point for navigating the project on GitHub.
+[Back to Main README](../README.md)
+
+EchoChain is a decentralized platform for music sample sharing, computation, and royalty distribution, combining blockchain, P2P, and modern UI/UX for creators and contributors.
 
 ## 📚 Main Documents
 
 - [EchoChain Documentation and Development Plan](./EchoChain_Documentation_and_Development_Plan.md)
-- [Project Roadmap](./../cline_docs/projectRoadmap.md)
-- [Tech Stack](./../cline_docs/techStack.md)
+- [Project Roadmap](../cline_docs/projectRoadmap.md)
+- [Tech Stack](../cline_docs/techStack.md)
 - [Architecture Overview](./architecture.md)
 - [Integration Plan](./INTEGRATION_PLAN.md)
 - [Open Source Integration Plan](./OpenSource_Integration_Plan.md)
@@ -21,7 +23,14 @@ Welcome to the Echochain project documentation! This index provides links and de
 - [Hosting Plan](./hosting-plan.md)
 - [Build Open Source](./build-open-source.md)
 
-## 🗂️ Schemas & API
+## 🗂️ Subproject READMEs
+- [P2P File Sharing System](../P2P_File_Sharing_System/README.md)
+- [macOS Application](../macOS_Application/README.md)
+- [Backend API Services](../Backend_API_Services/README.md)
+- [Blockchain Node](../Blockchain/README.md)
+- [Blockchain GUI](../Blockchain/Blockchain_GUI/README.md)
+
+## 🗃️ Schemas & API
 - [Sample Metadata Schema](./schemas/sample-metadata.schema.json)
 - [AsyncAPI Spec](./asyncapi.yaml)
 
@@ -35,7 +44,7 @@ Welcome to the Echochain project documentation! This index provides links and de
 
 ## 🤝 Contributing & More
 - For contributing guidelines, see [EchoChain Documentation and Development Plan](./EchoChain_Documentation_and_Development_Plan.md#contributing).
-- For technical questions, see [Tech Stack](./../cline_docs/techStack.md) and [Architecture](./architecture.md).
+- For technical questions, see [Tech Stack](../cline_docs/techStack.md) and [Architecture](./architecture.md).
 - For governance and decision-making, see [Governance Decisions](./governance_decisions.md).
 
 ---

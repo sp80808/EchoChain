@@ -754,8 +754,7 @@ impl<T: Config> Pallet<T> {
 		start_delay: u64,
 	) -> Result<(), Error<T>> {
 		for (job_id, assignment) in <StoredMatches<T>>::iter_prefix(source) {
-			// ignore job registrations not found (shouldn't happen if invariant is kept that assignments are cleared whenever a job is removed)
-			// TODO decide tradeoff: we could save this lookup at the cost of storing the schedule along with the match or even completely move it from StoredJobRegistration into StoredMatches
+			// Tradeoff: We keep this lookup for now to ensure schedule consistency, at the cost of a small performance hit. Storing the schedule with the match could optimize this, but would increase storage complexity.
 			if let Some(other) = <StoredJobRegistration<T>>::get(&job_id.0, job_id.1) {
 				// check if the whole schedule periods have an overlap in worst case scenario for max_start_delay
 				if !schedule.overlaps(start_delay, other.schedule.range(assignment.start_delay)) {

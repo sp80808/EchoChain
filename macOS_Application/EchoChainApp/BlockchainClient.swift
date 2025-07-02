@@ -9,7 +9,8 @@ protocol BlockchainClientProtocol: ObservableObject {
     var balance: Double { get }
     var walletAddress: String { get }
     var transactionHistory: [Transaction] { get }
-    var isConnected: Bool { get }
+    @Published var isConnected: Bool { get }
+    var errorMessage: String? { get }
 
     func createWallet(requireBiometrics: Bool) async throws
     func importWallet(mnemonic: String, requireBiometrics: Bool) async throws
@@ -32,6 +33,7 @@ class RealBlockchainClient: BlockchainClientProtocol {
     @Published var walletAddress: String = ""
     @Published var transactionHistory: [Transaction] = []
     @Published var isConnected: Bool = false
+    @Published var errorMessage: String? = nil
 
     private let nodeURL = URL(string: "ws://127.0.0.1:9945")! // Alice's WS port
     private let secureStorage = SecureStorage()
@@ -104,7 +106,7 @@ class RealBlockchainClient: BlockchainClientProtocol {
             } catch {
                 print("Failed to initialize Substrate API or load wallet: \(error.localizedDescription)")
                 self.isConnected = false
-                // TODO: Handle this error gracefully, perhaps by showing an alert to the user.
+                self.errorMessage = "Failed to initialize Substrate API or load wallet: \(error.localizedDescription)"
             }
         }
     }

@@ -674,6 +674,7 @@ mod benches {
 		[pallet_sudo, Sudo]
 		[pallet_template, TemplateModule]
 		[pallet_proof_of_contribution, ProofOfContribution]
+		[pallet_content_rewards, ContentRewards]
 	);
 }
 

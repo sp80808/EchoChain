@@ -131,6 +131,41 @@ query {
 
 For more details, see [SubQuery documentation](https://academy.subquery.network/).
 
+## Running a Single Node with Docker Compose
+
+For quick deployment of a single Echochain node, you can leverage the existing `docker-compose-testnet.yml` file. This file is configured to run multiple nodes for a testnet, but it can also be used to easily launch a single node in a production-like environment.
+
+1.  **Ensure Docker is running:** Make sure Docker and Docker Compose are installed and running on your system.
+
+2.  **Navigate to the `echochain-node` directory:**
+    ```bash
+    cd Blockchain/echochain-node
+    ```
+
+3.  **Launch the node in detached mode:**
+    ```bash
+    docker-compose -f docker-compose-testnet.yml up -d
+    ```
+    This command will build the Docker image (if not already built) and start the Echochain node in the background.
+
+4.  **Verify the Node is Running:**
+    *   **Check container logs:**
+        ```bash
+        docker logs -f echochain-node
+        ```
+        You should see output indicating the node is starting, syncing, and discovering peers.
+    *   **Check RPC Endpoint (from your host machine):**
+        ```bash
+        curl -H "Content-Type: application/json" -d '{"id":1, "jsonrpc":"2.0", "method":"system_health", "params":[]}' http://localhost:9944
+        ```
+        Expected output should show `"isSyncing":false` (once synced) and `"peers":<number_of_peers>`.
+    *   **Connect with Polkadot-JS Apps UI:** You can connect to your local node using the Polkadot-JS Apps UI by pointing it to `ws://localhost:9945` (for WebSocket).
+
+5.  **Stop the node:**
+    ```bash
+    docker-compose -f docker-compose-testnet.yml down
+    ```
+
 ## Running a Local Test Network
 
 You can quickly spin up a 3-node local EchoChain testnet (Alice, Bob, Charlie) for development and testing using either a bash script or Docker Compose.

@@ -3,3 +3,98 @@ members = [
     "Blockchain/echochain-node/node",
     "Blockchain/echochain-node/runtime",
 ]
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+authors = ["Echochain Team"]
+homepage = "https://echochain.io"
+repository = "https://github.com/sp80808/EchoChain"
+license = "Unlicense"
+publish = false
+
+[workspace.dependencies]
+codec = { version = "3.7.5", default-features = false, package = "parity-scale-codec" }
+frame-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", branch = "polkadot-v1.1.0" }
+frame-support-procedural = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", branch = "polkadot-v1.1.0" }
+frame-system = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", branch = "polkadot-v1.1.0" }
+linregress = { version = "0.5.1" }
+log = { version = "0.4.22", default-features = false }
+paste = { version = "1.0.15", default-features = false }
+scale-info = { version = "2.11.6", default-features = false }
+serde = { version = "1.0.214", default-features = false }
+sp-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", branch = "polkadot-v1.1.0" }
+sp-application-crypto = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", branch = "polkadot-v1.1.0" }
+sp-core = { version = "21.0.0", default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", branch = "polkadot-v1.1.0" }
+sp-io = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", branch = "polkadot-v1.1.0" }
+sp-runtime = { version = "21.0.0", default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", branch = "polkadot-v1.1.0" }
+sp-runtime-interface = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", branch = "polkadot-v1.1.0" }
+sp-storage = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", branch = "polkadot-v1.1.0" }
+static_assertions = { version = "1.1.0", default-features = false }
+array-bytes = { version = "6.2.2", default-features = false }
+rusty-fork = { version = "0.3.0", default-features = false }
+sc-client-db = { path = "polkadot-sdk/substrate/client/db", default-features = false }
+sp-externalities = { path = "polkadot-sdk/substrate/primitives/externalities", default-features = false }
+sp-keystore = { path = "polkadot-sdk/substrate/primitives/keystore", default-features = false }
+sp-state-machine = { path = "polkadot-sdk/substrate/primitives/state-machine", default-features = false }
+hash-db = { version = "0.16.0", default-features = false }
+kvdb = { version = "0.13.0" }
+kvdb-memorydb = { version = "0.13.0" }
+kvdb-rocksdb = { version = "0.19.0" }
+linked-hash-map = { version = "0.5.4" }
+parity-db = { version = "0.4.12" }
+parking_lot = { version = "0.12.1", default-features = false }
+prometheus-endpoint = { path = "polkadot-sdk/substrate/utils/prometheus", default-features = false, package = "substrate-prometheus-endpoint" }
+sc-client-api = { version = "0.10.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", branch = "polkadot-v1.1.0" }
+sc-state-db = { path = "polkadot-sdk/substrate/client/state-db", default-features = false }
+schnellru = { version = "0.2.3" }
+sp-arithmetic = { path = "polkadot-sdk/substrate/primitives/arithmetic", default-features = false }
+sp-blockchain = { path = "polkadot-sdk/substrate/primitives/blockchain", default-features = false }
+sp-database = { path = "polkadot-sdk/substrate/primitives/database", default-features = false }
+sp-trie = { path = "polkadot-sdk/substrate/primitives/trie", default-features = false }
+sysinfo = { version = "0.30" }
+criterion = { version = "0.5.1", default-features = false }
+kitchensink-runtime = { path = "polkadot-sdk/substrate/bin/node/runtime" }
+rand = { version = "0.8.5", default-features = false }
+sp-tracing = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", branch = "polkadot-v1.1.0" }
+
+[workspace.lints.rust]
+suspicious_double_ref_op = { level = "allow", priority = 2 }
+# `substrate_runtime` is a common `cfg` condition name used in the repo.
+unexpected_cfgs = { level = "warn", check-cfg = [
+	'cfg(build_opt_level, values("3"))',
+	'cfg(build_profile, values("debug", "release"))',
+	'cfg(enable_alloc_error_handler)',
+	'cfg(fuzzing)',
+	'cfg(ignore_flaky_test)',
+	'cfg(substrate_runtime)',
+] }
+
+[workspace.lints.clippy]
+all = { level = "allow", priority = 0 }
+bind_instead_of_map = { level = "allow", priority = 2 }              # stylistic
+borrowed-box = { level = "allow", priority = 2 }                     # Reasonable to fix this one
+complexity = { level = "warn", priority = 1 }
+correctness = { level = "warn", priority = 1 }
+default_constructed_unit_structs = { level = "allow", priority = 2 } # stylistic
+derivable_impls = { level = "allow", priority = 2 }                  # false positives
+eq_op = { level = "allow", priority = 2 }                            # In tests we test equality.
+erasing_op = { level = "allow", priority = 2 }                       # E.g. 0 * DOLLARS
+extra-unused-type-parameters = { level = "allow", priority = 2 }     # stylistic
+identity-op = { level = "allow", priority = 2 }                      # One case where we do 0 +
+if-same-then-else = { level = "allow", priority = 2 }
+needless-lifetimes = { level = "allow", priority = 2 }               # generated code
+needless_option_as_deref = { level = "allow", priority = 2 }         # false positives
+nonminimal-bool = { level = "allow", priority = 2 }                  # maybe
+option-map-unit-fn = { level = "allow", priority = 2 }               # stylistic
+stable_sort_primitive = { level = "allow", priority = 2 }            # prefer stable sort
+too-many-arguments = { level = "allow", priority = 2 }               # (Turning this on would lead to)
+type_complexity = { level = "allow", priority = 2 }                  # raison d'etre
+unit_arg = { level = "allow", priority = 2 }                         # stylistic
+unnecessary_cast = { level = "allow", priority = 2 }                 # Types may change
+useless_conversion = { level = "allow", priority = 2 }               # Types may change
+while_immutable_condition = { level = "allow", priority = 2 }        # false positives
+zero-prefixed-literal = { level = "allow", priority = 2 }            # 00_1000_000
+
+[profile.release]
+panic = "unwind"

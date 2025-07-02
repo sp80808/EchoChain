@@ -122,8 +122,23 @@ struct SampleUploadView: View {
             Task {
                 do {
                     if !p2pClient.isConnected {
-                        // TODO: Implement robust connection retry logic for P2P client.
-                        try await p2pClient.connect()
+                        let maxRetries = 5
+                        var retryCount = 0
+                        while retryCount < maxRetries {
+                            do {
+                                try await p2pClient.connect()
+                                break // Connection successful, exit loop
+                            } catch {
+                                retryCount += 1
+                                print("P2P connection failed: \(error.localizedDescription). Retrying (\(retryCount)/\(maxRetries))...")
+                                if retryCount < maxRetries {
+                                    try await Task.sleep(nanoseconds: 2_000_000_000) // Wait 2 seconds before retrying
+                                } else {
+                                    errorMessage = "Failed to connect to P2P client after \(maxRetries) attempts: \(error.localizedDescription)"
+                                    showingErrorAlert = true
+                                }
+                            }
+                        }
                     }
                 } catch {
                     errorMessage = error.localizedDescription

@@ -7,7 +7,7 @@ protocol BackendAPIClientProtocol {
 class RealBackendAPIClient: BackendAPIClientProtocol {
     private let baseURL = URL(string: "http://127.0.0.1:3000/api")!
 
-    func fetchSamples(query: String?, category: String?) async throws -> [Sample] {
+    func fetchSamples(query: String?, category: String?, bpm: String?, key: String?) async throws -> [Sample] {
         var urlComponents = URLComponents(url: baseURL.appendingPathComponent("samples"), resolvingAgainstBaseURL: false)!
         var queryItems: [URLQueryItem] = []
 
@@ -17,6 +17,14 @@ class RealBackendAPIClient: BackendAPIClientProtocol {
 
         if let category = category, !category.isEmpty {
             queryItems.append(URLQueryItem(name: "category", value: category))
+        }
+
+        if let bpm = bpm, !bpm.isEmpty {
+            queryItems.append(URLQueryItem(name: "bpm", value: bpm))
+        }
+
+        if let key = key, !key.isEmpty {
+            queryItems.append(URLQueryItem(name: "key", value: key))
         }
 
         urlComponents.queryItems = queryItems
@@ -34,6 +42,51 @@ class RealBackendAPIClient: BackendAPIClientProtocol {
         let samples = try JSONDecoder().decode([Sample].self, from: data)
         return samples
     }
+
+    func fetchUserAndSamples(userId: String) async throws -> (User, [Sample]) {
+        guard let url = URL(string: baseURL.absoluteString + "/users/" + userId) else {
+            throw APIError.invalidURL
+        }
+
+        let (data, response) = try await URLSession.shared.data(from: url)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.requestFailed
+        }
+
+        if httpResponse.statusCode == 404 {
+            throw APIError.userNotFound
+        } else if httpResponse.statusCode != 200 {
+            throw APIError.requestFailed
+        }
+
+        struct UserAndSamplesResponse: Codable {
+            let user: User
+            let samples: [Sample]
+        }
+
+        let decodedResponse = try JSONDecoder().decode(UserAndSamplesResponse.self, from: data)
+        return (decodedResponse.user, decodedResponse.samples)
+    }
+
+    func fetchReferredUsersCount(userId: String) async throws -> Int {
+        guard let url = URL(string: baseURL.absoluteString + "/users/" + userId + "/referred-count") else {
+            throw APIError.invalidURL
+        }
+
+        let (data, response) = try await URLSession.shared.data(from: url)
+
+        guard let httpResponse = response as? HTTPURLRESPONSE, httpResponse.statusCode == 200 else {
+            throw APIError.requestFailed
+        }
+
+        struct ReferredCountResponse: Codable {
+            let count: Int
+        }
+
+        let decodedResponse = try JSONDecoder().decode(ReferredCountResponse.self, from: data)
+        return decodedResponse.count
+    }
 }
 
 struct Sample: Codable, Identifiable {
@@ -45,6 +98,10 @@ struct Sample: Codable, Identifiable {
     let p2pContentId: String
     let price: Double
     let ownerAddress: String
+    let usageCount: Int // Added for incentive system
+    let bpm: Int?
+    let key: String?
+    let creatorId: String // Added for linking to creator profiles
 }
 
 enum APIError: Error {

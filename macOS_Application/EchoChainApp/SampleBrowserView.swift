@@ -10,6 +10,8 @@ struct SampleBrowserView: View {
     @State private var audioPlayer: AVPlayer?
     @State private var searchQuery: String = ""
     @State private var filterCategory: String = ""
+    @State private var filterBPM: String = "" // New BPM filter
+    @State private var filterKey: String = "" // New Key filter
     @State private var isLoadingSamples: Bool = false // New loading state
 
     var body: some View {
@@ -29,6 +31,29 @@ struct SampleBrowserView: View {
                     Text("Vocals").tag("Vocals")
                     Text("Synths").tag("Synths")
                     Text("FX").tag("FX")
+                }
+                .pickerStyle(MenuPickerStyle())
+                .padding(.horizontal)
+            }
+            HStack {
+                TextField("BPM (e.g., 120)", text: $filterBPM)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .keyboardType(.numberPad)
+                    .padding(.horizontal)
+                Picker("Key", selection: $filterKey) {
+                    Text("All").tag("")
+                    Text("C").tag("C")
+                    Text("C#").tag("C#")
+                    Text("D").tag("D")
+                    Text("D#").tag("D#")
+                    Text("E").tag("E")
+                    Text("F").tag("F")
+                    Text("F#").tag("F#")
+                    Text("G").tag("G")
+                    Text("G#").tag("G#")
+                    Text("A").tag("A")
+                    Text("A#").tag("A#")
+                    Text("B").tag("B")
                 }
                 .pickerStyle(MenuPickerStyle())
                 .padding(.horizontal)
@@ -96,7 +121,9 @@ struct SampleBrowserView: View {
     var filteredSamples: [Sample] {
         samples.filter { sample in
             (searchQuery.isEmpty || sample.title.localizedCaseInsensitiveContains(searchQuery)) &&
-            (filterCategory.isEmpty || sample.category == filterCategory)
+            (filterCategory.isEmpty || sample.category == filterCategory) &&
+            (filterBPM.isEmpty || String(sample.bpm) == filterBPM) &&
+            (filterKey.isEmpty || sample.key == filterKey)
         }
     }
 
@@ -104,7 +131,7 @@ struct SampleBrowserView: View {
         isLoadingSamples = true
         defer { isLoadingSamples = false }
         do {
-            samples = try await backendAPIClient.fetchSamples(query: searchQuery, category: filterCategory)
+            samples = try await backendAPIClient.fetchSamples(query: searchQuery, category: filterCategory, bpm: filterBPM, key: filterKey)
         } catch {
             errorMessage = error.localizedDescription
             showingErrorAlert = true
@@ -125,35 +152,87 @@ struct SampleRow: View {
     let purchaseAction: () -> Void
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading) {
+        HStack(alignment: .center) {
+            // Left section: Info and Waveform Placeholder
+            VStack(alignment: .leading, spacing: 5) {
                 Text(sample.title)
                     .font(.headline)
-                Text(sample.artist)
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
+                    .lineLimit(1)
+
+                NavigationLink(destination: CreatorProfileView(creatorId: sample.creatorId)) {
+                    Text(sample.artist)
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                        .lineLimit(1)
+                }
+
+                HStack {
+                    if let bpm = sample.bpm {
+                        Text("BPM: \(bpm)")
+                            .font(.caption)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(Color.blue.opacity(0.2)))
+                    }
+                    if let key = sample.key {
+                        Text("Key: \(key)")
+                            .font(.caption)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(Color.green.opacity(0.2)))
+                    }
+                    Text(sample.category)
+                        .font(.caption)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Color.orange.opacity(0.2)))
+                }
+
+                // Waveform Placeholder
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(height: 40)
+                    .overlay(
+                        Text("Waveform Placeholder")
+                            .font(.caption2)
+                            .foregroundColor(.white)
+                    )
             }
+
             Spacer()
-            Text(sample.duration)
-                .font(.subheadline)
-            Text("Price: \(sample.price, specifier: "%.4f")")
-                .font(.subheadline)
-            Text("ID: \(sample.p2pContentId)")
-                .font(.caption)
-                .lineLimit(1)
-                .truncationMode(.middle)
-            Button(action: playAction) {
-                Image(systemName: "play.circle.fill")
-                    .font(.title)
-                    .foregroundColor(.blue)
-            }
-            Button(action: purchaseAction) {
-                Image(systemName: "cart.fill")
-                    .font(.title)
-                    .foregroundColor(.green)
+
+            // Right section: Actions and Stats
+            VStack(alignment: .trailing, spacing: 5) {
+                HStack {
+                    Button(action: playAction) {
+                        Image(systemName: "play.circle.fill")
+                            .font(.title)
+                            .foregroundColor(.blue)
+                    }
+                    Button(action: purchaseAction) {
+                        Image(systemName: "cart.fill")
+                            .font(.title)
+                            .foregroundColor(.green)
+                    }
+                }
+
+                Text("Price: \(sample.price, specifier: "%.4f")")
+                    .font(.subheadline)
+
+                Text("Used: \(sample.usageCount) times")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Text("Duration: \(sample.duration)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
         }
-        .padding(.vertical, 5)
+        .padding(.vertical, 10)
+        .padding(.horizontal)
+        .background(Color.white)
+        .cornerRadius(10)
+        .shadow(radius: 2)
     }
 }
 

@@ -10,6 +10,7 @@ const UserSchema: Schema = new Schema({
   email: { type: String, required: true, unique: true },
   passwordHash: { type: String, required: true },
   walletAddress: { type: String, required: true, unique: true },
+  referrerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 });
 
 export default mongoose.model<IUser>('User', UserSchema);

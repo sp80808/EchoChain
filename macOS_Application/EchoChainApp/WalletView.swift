@@ -70,6 +70,107 @@ struct WalletView: View {
             }
             .padding(.horizontal)
             .onChange(of: biometricsEnabled) { newValue in
+                // Existing biometrics logic
+            }
+
+            Divider()
+
+            // Referral System Section
+            Text("Referral Program")
+                .font(.title)
+                .padding(.top, 20)
+
+            HStack {
+                Text("Your Referral Code:")
+                    .font(.title3)
+                Spacer()
+                Text(blockchainClient.referralCode) // Assuming blockchainClient will provide this
+                    .font(.title3)
+                    .foregroundColor(.blue)
+                Button(action: {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(blockchainClient.referralCode, forType: .string)
+                    errorMessage = "Referral code copied to clipboard!"
+                    showingErrorAlert = true
+                }) {
+                    Image(systemName: "doc.on.doc")
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+            .padding(.horizontal)
+
+            HStack {
+                Text("Referred Users:")
+                    .font(.title3)
+                Spacer()
+                Text("\(blockchainClient.referredUsersCount)") // Assuming blockchainClient will provide this
+                    .font(.title3)
+                    .foregroundColor(.green)
+            }
+            .padding(.horizontal)
+
+            // Faucet Rewards Section
+            Text("Faucet Rewards")
+                .font(.title)
+                .padding(.top, 20)
+
+            HStack {
+                Text("Available Faucet:")
+                    .font(.title3)
+                Spacer()
+                Text("\(blockchainClient.faucetAmount, specifier: "%.4f") ECHO") // Assuming blockchainClient will provide this
+                    .font(.title3)
+                    .foregroundColor(.green)
+            }
+            .padding(.horizontal)
+
+            Button(action: {
+                Task {
+                    isBlockchainActionLoading = true
+                    defer { isBlockchainActionLoading = false }
+                    do {
+                        let result = try await blockchainClient.claimRewards(requireBiometrics: biometricsEnabled)
+                        errorMessage = "Rewards claimed! Tx Hash: \(result)"
+                        showingErrorAlert = true
+                        // Refresh balance and faucet amount after claiming
+                        try await blockchainClient.fetchBalance(requireBiometrics: biometricsEnabled)
+                        try await blockchainClient.fetchFaucetAmount(requireBiometrics: biometricsEnabled)
+                    } catch {
+                        errorMessage = error.localizedDescription
+                        showingErrorAlert = true
+                    }
+                }
+            }) {
+                Label("Claim Faucet Rewards", systemImage: "giftcard.fill")
+                    .font(.title3)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color.green)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+            }
+            .padding(.horizontal)
+
+            Divider()
+
+            Text("Wallet Actions")
+                .font(.title)
+                .padding(.top, 20)
+
+            Button(action: {
+                Task {
+                    isBlockchainActionLoading = true
+                    defer { isBlockchainActionLoading = false }
+                    do {
+                        try await blockchainClient.createWallet(requireBiometrics: biometricsEnabled)
+                        errorMessage = "New wallet created successfully!"
+                        showingErrorAlert = true
+                    } catch {
+                        errorMessage = error.localizedDescription
+                        showingErrorAlert = true
+                    }
+                }
+            }) {
                 Task {
                     if newValue {
                         // Attempt to enable biometrics
@@ -399,6 +500,8 @@ struct WalletView: View {
                     }
                     try await blockchainClient.fetchBalance(requireBiometrics: biometricsEnabled)
                     try await blockchainClient.fetchTransactionHistory(requireBiometrics: biometricsEnabled)
+                    try await blockchainClient.fetchFaucetAmount(requireBiometrics: biometricsEnabled)
+                    try await blockchainClient.fetchReferredUsersCount(requireBiometrics: biometricsEnabled)
                 } catch {
                     errorMessage = error.localizedDescription
                     showingErrorAlert = true
@@ -411,6 +514,8 @@ struct WalletView: View {
                 do {
                     try await blockchainClient.fetchBalance(requireBiometrics: biometricsEnabled)
                     try await blockchainClient.fetchTransactionHistory(requireBiometrics: biometricsEnabled)
+                    try await blockchainClient.fetchFaucetAmount(requireBiometrics: biometricsEnabled)
+                    try await blockchainClient.fetchReferredUsersCount(requireBiometrics: biometricsEnabled)
                 } catch {
                     errorMessage = error.localizedDescription
                     showingErrorAlert = true

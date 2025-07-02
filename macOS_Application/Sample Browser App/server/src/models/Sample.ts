@@ -24,6 +24,7 @@ const SampleSchema: Schema = new Schema({
   ipfsCid: { type: String, required: true },
   metadataIpfsCid: { type: String, required: true },
   status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  usageCount: { type: Number, default: 0 },
 });
 
 export default mongoose.model<ISample>('Sample', SampleSchema);

@@ -74,6 +74,8 @@ pub mod pallet {
         OffChainTaskInitiated(u32),
         /// Compute task timed out and reassigned [task_id, new_worker]
         ComputeTaskReassigned(u32, T::AccountId),
+        /// Secure off-chain task initiated with TEE [task_id]
+        SecureOffChainTaskInitiated(u32),
     }
 
     /// Storage for compute tasks
@@ -310,6 +312,26 @@ pub mod pallet {
                     }
                 }
             }
+            Ok(())
+        }
+
+        /// Initiate a secure off-chain computation task using a Trusted Execution Environment (TEE)
+        #[pallet::weight(5_000)]
+        pub fn initiate_secure_off_chain_task(
+            origin: OriginFor<T>,
+            task_id: u32
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            let task = ComputeTasks::<T>::get(task_id).ok_or(Error::<T>::TaskNotFound)?;
+            ensure!(
+                task.status == TaskStatus::Created && task.creator == who,
+                Error::<T>::UnauthorizedWorker
+            );
+
+            // Placeholder for initiating a secure off-chain task using TEE
+            // Inspired by projects like Acurast, this would integrate with a TEE for secure computation
+            // In a full implementation, this would trigger a secure environment for task processing
+            Self::deposit_event(Event::SecureOffChainTaskInitiated(task_id));
             Ok(())
         }
 

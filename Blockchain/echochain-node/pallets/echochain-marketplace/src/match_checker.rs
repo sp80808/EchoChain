@@ -75,8 +75,10 @@ impl<T: Config> Pallet<T> {
 			let mut total_reward_per_execution: <T as Config>::Balance = 0u8.into();
 
 			// `slot` is used for detecting duplicate source proposed for distinct slots
-			// TODO: add global (configurable) maximum of jobs assigned. This would limit the weight of `propose_matching` to a constant, since it depends on the number of active matches.
 			for (slot, planned_execution) in m.sources.iter().enumerate() {
+				// Check if the processor has reached its maximum assigned jobs
+				let current_assigned_jobs = <AssignedJobCount<T>>::get(&planned_execution.source);
+				ensure!(current_assigned_jobs < T::MaxAssignedJobs::get(), Error::<T>::TooManyAssignedJobs);
 				// CHECK attestation
 				ensure!(
 					!registration.allow_only_verified_sources
@@ -201,6 +203,8 @@ impl<T: Config> Pallet<T> {
 					},
 				)?;
 				<AssignedProcessors<T>>::insert(&m.job_id, &planned_execution.source, ());
+				<AssignedJobCount<T>>::mutate(&planned_execution.source, |count| *count = count.saturating_add(1));
+				<AssignedJobCount<T>>::mutate(&planned_execution.source, |count| *count = count.saturating_add(1));
 			}
 
 			// CHECK total fee is not exceeding reward
@@ -310,8 +314,10 @@ impl<T: Config> Pallet<T> {
 			Self::cleanup_previous_execution_matches(m);
 
 			// `slot` is used for detecting duplicate source proposed for distinct slots
-			// TODO: add global (configurable) maximum of jobs assigned. This would limit the weight of `propose_execution_matching` to a constant, since it depends on the number of active matches.
 			for (slot, planned_execution) in m.sources.iter().enumerate() {
+				// Check if the processor has reached its maximum assigned jobs
+				let current_assigned_jobs = <AssignedJobCount<T>>::get(&planned_execution.source);
+				ensure!(current_assigned_jobs < T::MaxAssignedJobs::get(), Error::<T>::TooManyAssignedJobs);
 				// CHECK attestation
 				ensure!(
 					!registration.allow_only_verified_sources
@@ -443,7 +449,8 @@ impl<T: Config> Pallet<T> {
 					},
 				)?;
 				<AssignedProcessors<T>>::insert(&m.job_id, &planned_execution.source, ());
-			}
+				<AssignedJobCount<T>>::mutate(&planned_execution.source, |count| *count = count.saturating_add(1));
+				<AssignedJobCount<T>>::mutate(&planned_execution.source, |count| *count = count.saturating_add(1));
 
 			// CHECK total fee is not exceeding reward
 			let total_reward_amount = reward_amount
@@ -979,6 +986,7 @@ impl<T: Config> Pallet<T> {
 			// removed completed job from remaining storage points
 			for (p, _) in <AssignedProcessors<T>>::iter_prefix(&job_id) {
 				<StoredMatches<T>>::remove(&p, &job_id);
+				<AssignedJobCount<T>>::mutate(&p, |count| *count = count.saturating_sub(1));
 
 				<Pallet<T> as StorageTracker<T>>::unlock(&p, &registration)?;
 			}

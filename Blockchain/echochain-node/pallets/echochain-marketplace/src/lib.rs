@@ -18,6 +18,9 @@ pub mod pallet {
         /// Currency type for marketplace transactions
         #[pallet::constant]
         type Currency: Currency<Self::AccountId>;
+        /// The maximum number of jobs that can be assigned to a single processor.
+        #[pallet::constant]
+        type MaxAssignedJobs: Get<u32>;
     }
 
     #[pallet::event]
@@ -29,12 +32,46 @@ pub mod pallet {
         ItemPurchased(u64, T::AccountId, T::AccountId, BalanceOf<T>),
         /// Item expired and removed from marketplace [item_id]
         ItemExpired(u64),
+        /// Auction started for item [item_id, starting_price]
+        AuctionStarted(u64, BalanceOf<T>),
+        /// Bid placed on auction [item_id, bidder, bid_amount]
+        BidPlaced(u64, T::AccountId, BalanceOf<T>),
+        /// Auction ended [item_id, winner, final_price]
+        AuctionEnded(u64, T::AccountId, BalanceOf<T>),
+        /// Compute job posted to marketplace [job_id, requester, job_details]
+        ComputeJobPosted(u64, T::AccountId, Vec<u8>),
+        /// Commission posted for audio piece [commission_id, requester, bounty]
+        CommissionPosted(u64, T::AccountId, BalanceOf<T>),
+        /// Submission made for a commission [commission_id, submitter, submission_id]
+        SubmissionMade(u64, T::AccountId, u64),
+        /// Submission selected for a commission [commission_id, submitter, submission_id, bounty]
+        SubmissionSelected(u64, T::AccountId, u64, BalanceOf<T>),
     }
 
     /// Storage for marketplace items
     #[pallet::storage]
     #[pallet::getter(fn marketplace_items)]
     pub type MarketplaceItems<T> = StorageMap<_, Blake2_128Concat, u64, ItemInfo<T::AccountId, BalanceOf<T>>, OptionQuery>;
+
+    /// Stores the number of jobs currently assigned to each processor.
+    #[pallet::storage]
+    #[pallet::getter(fn assigned_job_count)]
+    pub type AssignedJobCount<T: Config> = StorageMap<_, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
+
+    /// Storage for auctions
+    #[pallet::storage]
+    #[pallet::getter(fn auctions)]
+    pub type Auctions<T> = StorageMap<_, Blake2_128Concat, u64, AuctionInfo<T::AccountId, BalanceOf<T>>, OptionQuery>;
+
+    /// Storage for commissions
+    #[pallet::storage]
+    #[pallet::getter(fn commissions)]
+    pub type Commissions<T> = StorageMap<_, Blake2_128Concat, u64, CommissionInfo<T::AccountId, BalanceOf<T>>, OptionQuery>;
+
+    /// Storage for submissions to commissions
+    #[pallet::storage]
+    #[pallet::getter(fn submissions)]
+    pub type Submissions<T> = StorageDoubleMap<_, Blake2_128Concat, u64, Blake2_128Concat, u64, SubmissionInfo<T::AccountId>, OptionQuery>;
 
     /// Item information structure
     #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
@@ -45,6 +82,51 @@ pub mod pallet {
         royalty_recipients: Option<(AccountId, AccountId, AccountId)>, // (creator, contributor, liquidity_pool)
         listing_block: BlockNumber,
         expiration_block: Option<BlockNumber>,
+    }
+
+    /// Auction information structure
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+    pub struct AuctionInfo<AccountId, Balance, BlockNumber> {
+        item_id: u64,
+        seller: AccountId,
+        starting_price: Balance,
+        highest_bid: Option<(AccountId, Balance)>,
+        start_block: BlockNumber,
+        end_block: BlockNumber,
+        status: AuctionStatus,
+    }
+
+    /// Commission information structure
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+    pub struct CommissionInfo<AccountId, Balance, BlockNumber> {
+        requester: AccountId,
+        bounty: Balance,
+        description: Vec<u8>,
+        listing_block: BlockNumber,
+        expiration_block: Option<BlockNumber>,
+        status: CommissionStatus,
+    }
+
+    /// Submission information structure
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+    pub struct SubmissionInfo<AccountId> {
+        submitter: AccountId,
+        content_hash: Vec<u8>,
+        submission_date: u64,
+    }
+
+    /// Commission status enum
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+    pub enum CommissionStatus {
+        Open,
+        Closed,
+    }
+
+    /// Auction status enum
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+    pub enum AuctionStatus {
+        Active,
+        Ended,
     }
 
     #[pallet::call]
@@ -234,6 +316,224 @@ pub mod pallet {
             }
             Ok(())
         }
+
+        /// Start an auction for an item
+        #[pallet::weight(10_000)]
+        pub fn start_auction(
+            origin: OriginFor<T>,
+            item_id: u64,
+            starting_price: BalanceOf<T>,
+            duration_blocks: T::BlockNumber
+        ) -> DispatchResult {
+            let seller = ensure_signed(origin)?;
+            let item = MarketplaceItems::<T>::get(item_id).ok_or(Error::<T>::ItemNotFound)?;
+            ensure!(
+                item.seller == seller,
+                Error::<T>::CannotBuyOwnItem
+            );
+
+            let current_block = <frame_system::Pallet<T>>::block_number();
+            let end_block = current_block.checked_add(&duration_blocks).unwrap_or(current_block);
+
+            let auction_info = AuctionInfo {
+                item_id,
+                seller: seller.clone(),
+                starting_price,
+                highest_bid: None,
+                start_block: current_block,
+                end_block,
+                status: AuctionStatus::Active,
+            };
+            Auctions::<T>::insert(item_id, auction_info);
+            // Remove from regular marketplace listing to prevent direct purchase
+            MarketplaceItems::<T>::remove(item_id);
+            Self::deposit_event(Event::AuctionStarted(item_id, starting_price));
+            Ok(())
+        }
+
+        /// Place a bid on an active auction
+        #[pallet::weight(10_000)]
+        pub fn place_bid(
+            origin: OriginFor<T>,
+            item_id: u64,
+            bid_amount: BalanceOf<T>
+        ) -> DispatchResult {
+            let bidder = ensure_signed(origin)?;
+            let mut auction = Auctions::<T>::get(item_id).ok_or(Error::<T>::ItemNotFound)?;
+            ensure!(
+                auction.status == AuctionStatus::Active,
+                Error::<T>::InvalidAuctionState
+            );
+            ensure!(
+                <frame_system::Pallet<T>>::block_number() <= auction.end_block,
+                Error::<T>::AuctionEnded
+            );
+            ensure!(
+                bid_amount > auction.starting_price,
+                Error::<T>::BidTooLow
+            );
+            if let Some((_, current_highest)) = auction.highest_bid {
+                ensure!(
+                    bid_amount > current_highest,
+                    Error::<T>::BidTooLow
+                );
+            }
+            ensure!(
+                auction.seller != bidder,
+                Error::<T>::CannotBuyOwnItem
+            );
+
+            // Reserve the bid amount (assuming Currency supports reservation)
+            // In a real implementation, this would lock the funds until auction end
+            auction.highest_bid = Some((bidder.clone(), bid_amount));
+            Auctions::<T>::insert(item_id, auction);
+            Self::deposit_event(Event::BidPlaced(item_id, bidder, bid_amount));
+            Ok(())
+        }
+
+        /// End an auction and finalize the sale
+        #[pallet::weight(15_000)]
+        pub fn end_auction(
+            origin: OriginFor<T>,
+            item_id: u64
+        ) -> DispatchResult {
+            let _who = ensure_signed(origin)?;
+            let mut auction = Auctions::<T>::get(item_id).ok_or(Error::<T>::ItemNotFound)?;
+            ensure!(
+                auction.status == AuctionStatus::Active,
+                Error::<T>::InvalidAuctionState
+            );
+            let current_block = <frame_system::Pallet<T>>::block_number();
+            ensure!(
+                current_block >= auction.end_block,
+                Error::<T>::AuctionNotEnded
+            );
+
+            auction.status = AuctionStatus::Ended;
+            if let Some((winner, final_price)) = auction.highest_bid {
+                // Transfer the final price to the seller
+                T::Currency::transfer(&winner, &auction.seller, final_price, ExistenceRequirement::KeepAlive)?;
+
+                // Distribute royalties if specified
+                if let Some(item) = MarketplaceItems::<T>::get(item_id) {
+                    if let Some((creator, contributor, liquidity_pool)) = item.royalty_recipients {
+                        let royalty_result = pallet_royalty_distribution::Pallet::<T>::distribute_royalties(
+                            frame_system::RawOrigin::Signed(winner.clone()).into(),
+                            final_price,
+                            creator,
+                            contributor,
+                            liquidity_pool
+                        );
+                        if let Err(e) = royalty_result {
+                            log::warn!("Royalty distribution failed for auction {}: {:?}", item_id, e);
+                        }
+                    }
+                }
+
+                Auctions::<T>::insert(item_id, auction);
+                Self::deposit_event(Event::AuctionEnded(item_id, winner, final_price));
+            } else {
+                // No bids, auction ends without a sale, item is removed
+                Auctions::<T>::remove(item_id);
+                Self::deposit_event(Event::AuctionEnded(item_id, auction.seller, auction.starting_price));
+            }
+            Ok(())
+        }
+
+        /// Post a commission for an audio piece with a bounty
+        #[pallet::weight(10_000)]
+        pub fn post_commission(
+            origin: OriginFor<T>,
+            commission_id: u64,
+            bounty: BalanceOf<T>,
+            description: Vec<u8>,
+            duration_blocks: Option<T::BlockNumber>
+        ) -> DispatchResult {
+            let requester = ensure_signed(origin)?;
+            
+            ensure!(
+                !Commissions::<T>::contains_key(commission_id),
+                Error::<T>::ItemAlreadyExists
+            );
+
+            let current_block = <frame_system::Pallet<T>>::block_number();
+            let expiration_block = duration_blocks.map(|duration| current_block.checked_add(&duration).unwrap_or(current_block));
+
+            let commission_info = CommissionInfo {
+                requester: requester.clone(),
+                bounty,
+                description,
+                listing_block: current_block,
+                expiration_block,
+                status: CommissionStatus::Open,
+            };
+            Commissions::<T>::insert(commission_id, commission_info);
+            Self::deposit_event(Event::CommissionPosted(commission_id, requester, bounty));
+            Ok(())
+        }
+
+        /// Submit an audio sample for a commission
+        #[pallet::weight(10_000)]
+        pub fn submit_for_commission(
+            origin: OriginFor<T>,
+            commission_id: u64,
+            submission_id: u64,
+            content_hash: Vec<u8>
+        ) -> DispatchResult {
+            let submitter = ensure_signed(origin)?;
+            let commission = Commissions::<T>::get(commission_id).ok_or(Error::<T>::ItemNotFound)?;
+            ensure!(
+                commission.status == CommissionStatus::Open,
+                Error::<T>::InvalidCommissionState
+            );
+
+            let current_block = <frame_system::Pallet<T>>::block_number();
+            if let Some(expiration) = commission.expiration_block {
+                ensure!(
+                    current_block <= expiration,
+                    Error::<T>::ItemExpired
+                );
+            }
+
+            let submission_info = SubmissionInfo {
+                submitter: submitter.clone(),
+                content_hash,
+                submission_date: current_block.into(),
+            };
+            Submissions::<T>::insert(commission_id, submission_id, submission_info);
+            Self::deposit_event(Event::SubmissionMade(commission_id, submitter, submission_id));
+            Ok(())
+        }
+
+        /// Select a submission for a commission and award the bounty
+        #[pallet::weight(15_000)]
+        pub fn select_submission(
+            origin: OriginFor<T>,
+            commission_id: u64,
+            submission_id: u64
+        ) -> DispatchResult {
+            let requester = ensure_signed(origin)?;
+            let mut commission = Commissions::<T>::get(commission_id).ok_or(Error::<T>::ItemNotFound)?;
+            ensure!(
+                commission.requester == requester,
+                Error::<T>::UnauthorizedAction
+            );
+            ensure!(
+                commission.status == CommissionStatus::Open,
+                Error::<T>::InvalidCommissionState
+            );
+
+            let submission = Submissions::<T>::get(commission_id, submission_id).ok_or(Error::<T>::SubmissionNotFound)?;
+            
+            // Transfer the bounty to the submitter
+            T::Currency::transfer(&requester, &submission.submitter, commission.bounty, ExistenceRequirement::KeepAlive)?;
+
+            // Close the commission
+            commission.status = CommissionStatus::Closed;
+            Commissions::<T>::insert(commission_id, commission);
+            Self::deposit_event(Event::SubmissionSelected(commission_id, submission.submitter, submission_id, commission.bounty));
+            Ok(())
+        }
     }
 
     #[pallet::error]
@@ -250,6 +550,22 @@ pub mod pallet {
         NoItemsToPurchase,
         /// Item has expired and cannot be purchased
         ItemExpired,
+        /// Auction is not in an active state
+        InvalidAuctionState,
+        /// Auction has already ended
+        AuctionEnded,
+        /// Auction has not yet ended
+        AuctionNotEnded,
+        /// Bid amount is too low
+        BidTooLow,
+        /// Processor has too many assigned jobs
+        TooManyAssignedJobs,
+        /// Commission is not in an open state
+        InvalidCommissionState,
+        /// Submission not found for the commission
+        SubmissionNotFound,
+        /// Unauthorized action
+        UnauthorizedAction,
     }
 
     pub trait MarketplaceInterface<AccountId> {
@@ -258,7 +574,25 @@ pub mod pallet {
 
     impl<T: Config> MarketplaceInterface<T::AccountId> for Pallet<T> {
         fn post_job(who: T::AccountId, job_id: u64, job_details: Vec<u8>) -> DispatchResult {
-            // This is a stub. The actual implementation would post a job to the marketplace.
+            // Check if the job_id is already in use
+            ensure!(
+                !MarketplaceItems::<T>::contains_key(job_id),
+                Error::<T>::ItemAlreadyExists
+            );
+
+            // Record the job as an item in the marketplace with a placeholder price
+            let current_block = <frame_system::Pallet<T>>::block_number();
+            let job_info = ItemInfo {
+                seller: who.clone(),
+                price: BalanceOf::<T>::zero(),
+                description: job_details.clone(),
+                royalty_recipients: None,
+                listing_block: current_block,
+                expiration_block: None,
+            };
+            MarketplaceItems::<T>::insert(job_id, job_info);
+            
+            // Emit event for job posting
             Pallet::<T>::deposit_event(Event::ComputeJobPosted(job_id, who, job_details));
             Ok(())
         }

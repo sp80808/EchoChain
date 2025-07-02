@@ -250,6 +250,25 @@ router.get('/:id/download', auth, async (req, res) => {
       'Content-Disposition': `attachment; filename="${sample.title}.mp3"`,
     });
     res.send(fileContent);
+
+    // Increment usageCount with debounce
+    const userId = req.user.id;
+    const sampleId = sample._id.toString();
+    const now = Date.now();
+
+    if (!downloadDebounce[userId]) {
+      downloadDebounce[userId] = {};
+    }
+
+    if (!downloadDebounce[userId][sampleId] || (now - downloadDebounce[userId][sampleId] > DEBOUNCE_INTERVAL_MS)) {
+      sample.usageCount = (sample.usageCount || 0) + 1;
+      await sample.save();
+      downloadDebounce[userId][sampleId] = now;
+      console.log(`Sample ${sample.title} usageCount incremented to ${sample.usageCount}`);
+    } else {
+      console.log(`Sample ${sample.title} download debounced for user ${userId}`);
+    }
+
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server error');

@@ -26,10 +26,7 @@ pub mod pallet {
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
         type MinApprovedSamples: Get<u32>;
         type RewardAmount: Get<u128>;
-        #[cfg(feature = "runtime-benchmarks")]
-        type SampleRegistry: SampleInterface<Self::AccountId> = benchmarking::MockSampleRegistry<Self>;
-        #[cfg(not(feature = "runtime-benchmarks"))]
-        type SampleRegistry: SampleInterface<Self::AccountId> = pallet_sample_registry::Pallet<Self>;
+        type SampleRegistry: SampleInterface<Self::AccountId>;
     }
 
     #[pallet::event]

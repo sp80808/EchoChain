@@ -1,16 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { web3Enable, web3Accounts, web3FromSource } from '@polkadot/extension-dapp';
 import { ApiPromise, WsProvider } from '@polkadot/api';
+import { useAccount } from '../contexts/AccountContext';
 
 const WS_ENDPOINT = 'ws://127.0.0.1:9944'; // Updated for local node
 
 function AccountStatus() {
   const [accounts, setAccounts] = useState([]);
-  const [selected, setSelected] = useState(null);
   const [api, setApi] = useState(null);
   const [balance, setBalance] = useState(null);
   const [status, setStatus] = useState('idle'); // idle, connecting, connected, no-extension, error
   const [error, setError] = useState(null);
+  const { account, setAccount } = useAccount();
 
   useEffect(() => {
     const provider = new WsProvider(WS_ENDPOINT);
@@ -23,12 +24,12 @@ function AccountStatus() {
   }, []);
 
   useEffect(() => {
-    if (api && selected) {
-      api.query.system.account(selected.address)
+    if (api && account) {
+      api.query.system.account(account.address)
         .then(({ data }) => setBalance(data.free.toHuman()))
         .catch(() => setBalance('Error'));
     }
-  }, [api, selected]);
+  }, [api, account]);
 
   const connectWallet = async () => {
     setStatus('connecting');
@@ -75,10 +76,10 @@ function AccountStatus() {
       <label htmlFor="account-select">Account: </label>
       <select
         id="account-select"
-        value={selected ? selected.address : ''}
+        value={account ? account.address : ''}
         onChange={e => {
           const acc = accounts.find(a => a.address === e.target.value);
-          setSelected(acc);
+          setAccount(acc);
         }}
       >
         <option value="">Select account</option>
@@ -88,7 +89,7 @@ function AccountStatus() {
           </option>
         ))}
       </select>
-      {selected && (
+      {account && (
         <span style={{ marginLeft: '1em' }}>
           Balance: {balance || '...'}
         </span>

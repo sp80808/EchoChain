@@ -107,10 +107,33 @@ const SampleBrowser: React.FC = () => {
     };
   }, [samples]);
 
-  const handleTip = (amount: number) => {
+  const handleTip = async (amount: number) => {
     console.log(`Tipping ${amount} ECHO to ${selectedCreatorEmail}`);
-    // TODO: Integrate with backend API for tipping (blockchain interaction)
-    alert(`Successfully tipped ${amount} ECHO to ${selectedCreatorEmail}! (Simulated)`);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:3001/api/tip`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token || '',
+        },
+        body: JSON.stringify({
+          sampleId: selectedSampleId,
+          creatorEmail: selectedCreatorEmail,
+          amount: amount,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      alert(`Successfully tipped ${amount} ECHO to ${selectedCreatorEmail}!`);
+      setIsTipModalOpen(false);
+    } catch (e: any) {
+      alert(`Failed to send tip: ${e.message}`);
+    }
   };
 
   return (

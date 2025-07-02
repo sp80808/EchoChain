@@ -1,5 +1,11 @@
 import cron from 'node-cron';
 import Sample from '../models/Sample';
+import User from '../auth/User';
+
+const BASE_REWARD = 50; // Base ECHO for eligible creators
+const SAMPLE_USAGE_MULTIPLIER = 5; // ECHO per high-usage sample
+const REFERRAL_MULTIPLIER = 10; // ECHO per referred user
+const MIN_USAGE_COUNT = 10; // Minimum usage count for a sample to be considered 'high-usage'
 import { distributeContentRewardsOnBlockchain, distributeNetworkRewardsOnBlockchain } from './blockchain';
 
 export const setupRewardSystem = () => {
@@ -11,36 +17,43 @@ export const setupRewardSystem = () => {
       oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
 
       // Find users who uploaded at least 5 approved samples in the last month
-      const eligibleCreators = await Sample.aggregate([
-        {
-          $match: {
-            status: 'approved',
-            createdAt: { $gte: oneMonthAgo },
-          },
-        },
-        {
-          $group: {
-            _id: '$creator',
-            count: { $sum: 1 },
-          },
-        },
-        {
-          $match: {
-            count: { $gte: 5 },
-          },
-        },
-      ]);
+      // Find all approved samples created in the last month
+      const approvedSamples = await Sample.find({
+        status: 'approved',
+        createdAt: { $gte: oneMonthAgo },
+      }).populate('creator');
 
-      for (const creator of eligibleCreators) {
-        console.log(`Creator ${creator._id} is eligible for content rewards.`);
-        // Placeholder for reporting to blockchain
-        // In a real scenario, this would call a specific blockchain extrinsic
-        // to distribute content rewards.
+      // Group samples by creator and count high-usage samples
+      const creatorData: { [key: string]: { creatorId: string; highUsageSamples: number; referredUsers: number } } = {};
+
+      for (const sample of approvedSamples) {
+        const creatorId = sample.creator._id.toString();
+        if (!creatorData[creatorId]) {
+          creatorData[creatorId] = { creatorId, highUsageSamples: 0, referredUsers: 0 };
+        }
+        if (sample.usageCount >= MIN_USAGE_COUNT) {
+          creatorData[creatorId].highUsageSamples++;
+        }
+      }
+
+      // Find referred users for each creator
+      for (const creatorId in creatorData) {
+        const referredUsers = await User.countDocuments({ referrerId: creatorId });
+        creatorData[creatorId].referredUsers = referredUsers;
+      }
+
+      for (const creatorId in creatorData) {
+        const { highUsageSamples, referredUsers } = creatorData[creatorId];
+        let rewardAmount = BASE_REWARD;
+        rewardAmount += highUsageSamples * SAMPLE_USAGE_MULTIPLIER;
+        rewardAmount += referredUsers * REFERRAL_MULTIPLIER;
+
+        console.log(`Creator ${creatorId} is eligible for content rewards: ${rewardAmount} ECHO.`);
         await distributeContentRewardsOnBlockchain(
-          creator._id.toString(),
-          100 // Assuming 100 ECHO per eligible creator
+          creatorId,
+          rewardAmount
         );
-        console.log(`Content reward reported for creator ${creator._id}`);
+        console.log(`Content reward reported for creator ${creatorId}`);
       }
     } catch (error) {
       console.error('Error during monthly content reward check:', error);
@@ -68,4 +81,27 @@ export const setupRewardSystem = () => {
   });
 
   console.log('Reward system scheduled.');
+};
+
+export const calculateUserFaucetAmount = async (userId: string): Promise<number> => {
+  try {
+    // Calculate high-usage samples for the specific user
+    const highUsageSamplesCount = await Sample.countDocuments({
+      creator: userId,
+      status: 'approved',
+      usageCount: { $gte: MIN_USAGE_COUNT },
+    });
+
+    // Calculate referred users for the specific user
+    const referredUsersCount = await User.countDocuments({ referrerId: userId });
+
+    let faucetAmount = BASE_REWARD;
+    faucetAmount += highUsageSamplesCount * SAMPLE_USAGE_MULTIPLIER;
+    faucetAmount += referredUsersCount * REFERRAL_MULTIPLIER;
+
+    return faucetAmount;
+  } catch (error) {
+    console.error('Error calculating user faucet amount:', error);
+    return 0; // Return 0 on error
+  }
 };

@@ -36,6 +36,9 @@ pub mod pallet {
         /// Timeout duration for file transfers in blocks
         #[pallet::constant]
         type TransferTimeout: Get<Self::BlockNumber>;
+        /// Reward amount for successful file sharing
+        #[pallet::constant]
+        type FileShareReward: Get<BalanceOf<Self>>;
     }
 
     #[pallet::event]
@@ -55,6 +58,8 @@ pub mod pallet {
         FileTransferCompleted(u64, T::AccountId, T::AccountId),
         /// File transfer timed out [file_id, sender, receiver]
         FileTransferTimedOut(u64, T::AccountId, T::AccountId),
+        /// Reward distributed for file sharing [account, file_id, reward_amount]
+        FileShareRewardDistributed(T::AccountId, u64, BalanceOf<T>),
     }
 
     /// Storage for registered P2P nodes
@@ -224,7 +229,12 @@ pub mod pallet {
 
             transfer.status = TransferStatus::Completed;
             FileTransfers::<T>::insert(file_id, &receiver, transfer);
-            Self::deposit_event(Event::FileTransferCompleted(file_id, transfer.sender, receiver));
+            Self::deposit_event(Event::FileTransferCompleted(file_id, transfer.sender.clone(), receiver.clone()));
+
+            // Distribute reward to sender for successful file sharing
+            let reward_amount = T::FileShareReward::get();
+            T::Currency::transfer(&receiver, &transfer.sender, reward_amount, ExistenceRequirement::AllowDeath)?;
+            Self::deposit_event(Event::FileShareRewardDistributed(transfer.sender, file_id, reward_amount));
             Ok(())
         }
 

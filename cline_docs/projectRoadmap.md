@@ -11,9 +11,9 @@ The Echochain project aims to develop a blockchain-based platform with various p
 - [ ] Implement runtime configurations for optimal performance.
 
 ### 2. Marketplace Pallet
-- [ ] Create a marketplace for data and services trading.
-- [ ] Implement transaction mechanisms and royalty distribution.
-- [ ] Enable user interaction through a GUI.
+- [x] Create a marketplace for data and services trading with commission functionality for audio pieces.
+- [x] Implement transaction mechanisms and royalty distribution.
+- [ ] Enable user interaction through a GUI for all marketplace features.
 
 ### 3. Compute Pallet
 - [ ] Develop a compute pallet for decentralized data processing.
@@ -31,8 +31,8 @@ The Echochain project aims to develop a blockchain-based platform with various p
 - [ ] Develop user-friendly interfaces for P2P interactions.
 
 ### 6. User Interface and Experience
-- [ ] Build a comprehensive GUI for user interaction with Echochain services.
-- [ ] Focus on intuitive design and seamless user experience.
+- [x] Build a comprehensive GUI for user interaction with Echochain services.
+- [x] Focus on intuitive design and seamless user experience with recent updates to sample registration and management.
 - [ ] Incorporate feedback mechanisms for continuous improvement.
 
 ## Completion Criteria
@@ -45,7 +45,23 @@ The Echochain project aims to develop a blockchain-based platform with various p
 - Development of core pallets in progress.
 
 ## Completed Tasks
-- None at this stage.
+- Developed and integrated the Echochain Blockchain Management GUI with components for sample registration and management.
+- Implemented transaction signing for on-chain sample registration.
+- Created a component to display user's registered samples.
+- Enhanced the `echochain-marketplace` pallet with commission functionality for audio pieces, allowing submissions and bounty rewards in ECHO tokens.
+
+## Recent Updates
+### Echochain-Compute Pallet Enhancements
+The `echochain-compute` pallet has undergone significant updates to enhance its task management and distribution capabilities. Key changes include:
+
+*   **Task Distribution Algorithms**: Two new task distribution algorithms have been implemented:
+    *   **Weighted Round-Robin**: This algorithm distributes tasks among available workers based on their assigned weights, ensuring workers with higher weights receive a proportionally larger share of tasks.
+    *   **Least Loaded**: This algorithm assigns tasks to the worker with the fewest currently assigned tasks, aiming to balance the workload across the network.
+*   **Configurable Task Distribution**: A new extrinsic, `set_task_distribution_algorithm`, has been added, allowing a root origin to dynamically select and set the active task distribution algorithm (either Weighted Round-Robin or Least Loaded).
+*   **Timed-Out Task Reassignment**: The `check_and_reassign_tasks` function has been implemented. This function periodically checks for tasks that have exceeded their allocated timeout duration and automatically reassigns them to available workers, improving task reliability and completion rates.
+*   **Benchmarking Updates**: Benchmarking files for the `echochain-compute` pallet have been updated with concrete benchmarks for operations like `create_pool` and `modify_pool`. While the `WeightInfo` estimates in `Blockchain/echochain-node/pallets/echochain-compute/src/traits.rs` still contain placeholders and conservative estimates, indicating ongoing work towards auto-generated weights, the presence of these benchmarks signifies progress in addressing and refining performance metrics.
+
+These updates collectively improve the efficiency, fairness, and robustness of task assignment and management within the `echochain-compute` pallet.
 
 ## Future Scalability Considerations
 - Design the architecture to support future addition of new pallets.

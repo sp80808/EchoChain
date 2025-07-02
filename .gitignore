@@ -6,6 +6,8 @@
 # -----------------
 # macOS
 .DS_Store
+.AppleDouble
+.LSOverride
 ._*
 .fseventsd
 .Spotlight-V100
@@ -13,6 +15,9 @@
 .Trashes
 .VolumeIcon.icns
 .com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+.apdisk
 
 # Windows
 Thumbs.db

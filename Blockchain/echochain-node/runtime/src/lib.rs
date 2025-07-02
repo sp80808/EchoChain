@@ -138,8 +138,8 @@ pub mod opaque {
 /// - Polkadot-JS Apps uses spec_version 100+ for custom type compatibility
 #[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: create_runtime_str!("node-template"),
-	impl_name: create_runtime_str!("node-template"),
+	spec_name: create_runtime_str!("echochain"),
+	impl_name: create_runtime_str!("echochain"),
 	authoring_version: 1,
 	spec_version: 100,
 	impl_version: 1,

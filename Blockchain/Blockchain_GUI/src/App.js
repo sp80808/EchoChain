@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -14,12 +14,15 @@ import UserSamples from './components/UserSamples';
 import CommissionPost from './components/CommissionPost';
 import CommissionSubmissions from './components/CommissionSubmissions';
 import CommissionSelection from './components/CommissionSelection';
+import NodeConnection from './components/NodeConnection'; // Import NodeConnection
 import './App.css';
 import { AccountProvider } from './contexts/AccountContext';
 import { SnackbarProvider } from 'notistack';
 import { NotificationProvider } from './contexts/NotificationContext';
 
 function App() {
+  const [api, setApi] = useState(null); // State to hold the Polkadot API instance
+
   const theme = createTheme({
     palette: {
       primary: {
@@ -45,6 +48,7 @@ function App() {
               <header className="App-header">
                 <h1>Echochain Blockchain Management GUI</h1>
                 <AccountStatus />
+                <NodeConnection onConnect={setApi} /> {/* Add NodeConnection component */}
                 <nav>
                   <ul>
                     <li><Link to="/">Home</Link></li>
@@ -63,17 +67,17 @@ function App() {
               </header>
               <main>
                 <Routes>
-                  <Route path="/" element={<Home />} />
-                  <Route path="/settings" element={<Settings />} />
-                  <Route path="/network" element={<Network />} />
-                  <Route path="/transfers" element={<Transfers />} />
-                  <Route path="/tests" element={<Tests />} />
-                  <Route path="/faucet" element={<Faucet />} />
-                  <Route path="/register-sample" element={<SampleUpload />} />
-                  <Route path="/my-samples" element={<UserSamples />} />
-                  <Route path="/post-commission" element={<CommissionPost />} />
-                  <Route path="/commission-submissions" element={<CommissionSubmissions />} />
-                  <Route path="/commission-selection" element={<CommissionSelection />} />
+                  <Route path="/" element={<Home api={api} />} /> {/* Pass api to Home */}
+                  <Route path="/settings" element={<Settings api={api} />} />
+                  <Route path="/network" element={<Network api={api} />} />
+                  <Route path="/transfers" element={<Transfers api={api} />} />
+                  <Route path="/tests" element={<Tests api={api} />} />
+                  <Route path="/faucet" element={<Faucet api={api} />} />
+                  <Route path="/register-sample" element={<SampleUpload api={api} />} />
+                  <Route path="/my-samples" element={<UserSamples api={api} />} />
+                  <Route path="/post-commission" element={<CommissionPost api={api} />} />
+                  <Route path="/commission-submissions" element={<CommissionSubmissions api={api} />} />
+                  <Route path="/commission-selection" element={<CommissionSelection api={api} />} />
                 </Routes>
               </main>
             </div>

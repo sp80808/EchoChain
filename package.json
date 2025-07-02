@@ -1,9 +1,46 @@
 {
+  "name": "echochain-project",
+  "version": "1.0.0",
+  "description": "EchoChain: Decentralized Music Sample Marketplace",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/echochain.git"
+  },
+  "author": "EchoChain Team",
+  "license": "MIT",
+  "private": true,
+  "workspaces": [
+    "Backend_API_Services",
+    "Blockchain/Blockchain_GUI",
+    "LandingPage/project",
+    "macOS_Application/Sample Browser App/server",
+    "P2P_File_Sharing_System"
+  ],
+  "scripts": {
+    "install:all": "npm install && npm run install:workspaces",
+    "install:workspaces": "npm install --workspaces",
+    "clean": "npm run clean:deps && npm run clean:builds",
+    "clean:deps": "find . -name 'node_modules' -type d -exec rm -rf {} +",
+    "clean:builds": "find . -name 'dist' -o -name 'build' -o -name 'target' -type d -exec rm -rf {} +",
+    "lint": "npm run lint --workspaces",
+    "format": "npm run format --workspaces",
+    "test": "npm run test --workspaces",
+    "build": "npm run build --workspaces"
+  },
+  "devDependencies": {
+    "prettier": "^3.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.0.0"
+  },
   "dependencies": {
     "@polkadot/api": "^16.3.1",
     "dotenv": "^17.0.1",
     "node-fetch": "^3.3.2",
     "notistack": "^3.0.2",
     "winston": "^3.17.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
   }
 }

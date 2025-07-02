@@ -98,8 +98,30 @@ See `api.py` and `P2PClient_Usage_Examples.md` for usage from Python, Node.js, G
 *   [EchoChain Documentation and Development Plan](../../docs/EchoChain_Documentation_and_Development_Plan.md)
 *   [Architecture Overview](../../docs/architecture.md) 
 
-## Related Documentation
+## Orchestrator & P2P Message Routing
 
-*   [Main EchoChain Project README](../../README.md)
-*   [EchoChain Documentation and Development Plan](../../docs/EchoChain_Documentation_and_Development_Plan.md)
-*   [Architecture Overview](../../docs/architecture.md) 
+All P2P orchestration and integration flows are now handled by the `EchoChainNode` class in `node.py`. This orchestrator wires together networking, DHT, file management, blockchain integration, and the local API. All peer-to-peer messages are routed through the `process_message` method, which delegates to the appropriate module.
+
+### Supported P2P Message Types
+P2P messages are JSON objects with the following structure:
+
+```
+{
+  "type": "<message_type>",
+  "payload": { ... }
+}
+```
+
+Supported message types:
+- `announce_content`: Announce a file/content hash to the DHT
+  - Payload: `{ "content_hash": <hash>, "peer_id": <optional> }`
+- `request_content_info`: Get peers for a content hash or list all available content
+  - Payload: `{ "content_hash": <hash or 'all_available_content'> }`
+- `request_file_info`: Get file metadata (filename, size, chunk count)
+  - Payload: `{ "file_hash": <hash> }`
+- `request_file_download`: Request a file download from the network (stub)
+  - Payload: `{ "content_hash": <hash> }`
+
+Responses are JSON objects with a `status` field (`success` or `error`) and additional data as appropriate.
+
+See `node.py` for the full implementation and `api.py` for the local API command structure. 

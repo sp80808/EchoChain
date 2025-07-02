@@ -1,0 +1,23 @@
+{
+  "name": "echochain-p2p-system",
+  "version": "1.0.0",
+  "description": "P2P File Sharing System for EchoChain",
+  "main": "node.py",
+  "scripts": {
+    "start": "python3 node.py",
+    "test": "python3 -m pytest tests/",
+    "lint": "flake8 *.py",
+    "format": "black *.py"
+  },
+  "keywords": ["p2p", "blockchain", "file-sharing", "echochain"],
+  "author": "EchoChain Team",
+  "license": "MIT",
+  "dependencies": {
+    "python": ">=3.8"
+  },
+  "devDependencies": {
+    "pytest": ">=7.0.0",
+    "flake8": ">=4.0.0",
+    "black": ">=22.0.0"
+  }
+}

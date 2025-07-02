@@ -1,7 +1,31 @@
+# ==================================
+# EchoChain Project .gitignore
+# ==================================
+
+# Operating Systems
+# -----------------
 # macOS
 .DS_Store
 ._*
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
 
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.nfs*
+
+# Development Environments
+# ------------------------
 # Xcode
 *.xcworkspace
 *.xcuserstate
@@ -10,58 +34,196 @@ DerivedData/
 
 # SwiftPM
 .build/
+.swiftpm/
 
+# Editors & IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+*~
+
+# Language-Specific
+# -----------------
 # Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.so
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
 venv/
 .venv/
+ENV/
+env/
+.env/
+pip-selfcheck.json
 
 # Node.js
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
 dist/
 build/
 coverage/
+.nyc_output
+.next
+.nuxt
+.cache/
+.parcel-cache/
 
 # Rust
-/target/
+target/
+**/*.rs.bk
 Cargo.lock
+.cargo/
 
-# Logs
+# TypeScript
+*.tsbuildinfo
+
+# Blockchain Specific
+# -------------------
+# Substrate/Polkadot
+**/target/
+**/node/chains/
+**/runtime/wasm/
+chain-spec-*.json
+*.wasm
+*.compact.wasm
+runtime.scale
+
+# IPFS
+.ipfs/
+ipfs_data/
+
+# Logs & Debug
+# ------------
 *.log
-npm-debug.log
-yarn-error.log
+*.log.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 debug.log
+error.log
+access.log
+combined.log
+*.rpt2_cache/
 
-# Editor/IDE
-.vscode/
-.idea/
-*.swp
-*.swo
+# Build Artifacts
+# ---------------
+dist/
+build/
+out/
+lib/
+*.dSYM/
 
-# Misc
-*.bak
-*.tmp
-*.old
-*.orig
-
-# Ignore scripts output
-scripts/*.sh
-
-# Ignore test output
+# Testing
+# -------
 test-output/
+test-results/
+coverage/
+.nyc_output/
+junit.xml
+*.lcov
 
-# Ignore environment files
+# Environment Files
+# -----------------
 .env
 .env.*
+!.env.example
+config.json
+secrets.json
 
-# Ignore Sample Browser App build artifacts
-Sample Browser App/server/node_modules/
-Sample Browser App/server/dist/
-Sample Browser App/server/build/
+# Database
+# --------
+*.db
+*.sqlite
+*.sqlite3
+db.json
 
-# Ignore polkaSK dpcs_files and other non-project files
-polkaSK dpcs_files/
-polkaSK dpcs.html
+# Temporary Files
+# ---------------
+*.tmp
+*.temp
+*.bak
+*.old
+*.orig
+*.rej
+*.swp
+*.swo
+*~
+
+# Security
+# --------
+*.pem
+*.key
+*.crt
+*.p12
+*.keystore
+private/
+secrets/
+
+# Project Specific
+# ----------------
+# Sample Browser App build artifacts
+Sample\ Browser\ App/server/node_modules/
+Sample\ Browser\ App/server/dist/
+Sample\ Browser\ App/server/build/
+
+# Legacy/Deprecated files
+polkaSK\ dpcs_files/
+polkaSK\ dpcs.html
+
+# Script outputs
+scripts/*.sh
+
+# Documentation builds
+docs/_build/
+docs/site/
+
+# Backup files
+*.backup
+
+# Lock files (keep package-lock.json for reproducible builds)
+yarn.lock
+pnpm-lock.yaml
+
+# OS generated files
+.fuse_hidden*
+.directory
+.Trash-*
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Visual Studio Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Compiled binaries
+*.exe
+*.out
+*.app

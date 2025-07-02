@@ -364,3 +364,38 @@ This development deployment provides the foundation for:
 **Version**: 1.0  
 **Target Environment**: macOS Development Setup  
 **Deployment Type**: Local Testnet with GUI Integration
+
+## ✅ Verification & Testing Checklist
+
+This section summarizes the current state of the EchoChain blockchain node deployment and backend integration, and provides a clear checklist for ongoing and future verification.
+
+### Current State
+- Custom Substrate runtime with EchoChain branding and all required pallets is integrated and builds successfully.
+- Chain spec is customized for EchoChain, with Alice and Bob as validators and all well-known accounts endowed.
+- Backend integration (`blockchain.ts`) uses environment variables for endpoint and service account, and implements all required extrinsics with robust error handling and logging.
+- Documentation covers environment setup, deployment, integration, and troubleshooting.
+
+### Verification Checklist
+- [x] Rust nightly, Substrate dependencies, and build instructions are documented.
+- [x] Branding and pallet integration in runtime are correct.
+- [x] Chain spec is customized for EchoChain.
+- [x] Multi-node setup (Alice, Bob) is configured and genesis config is correct.
+- [x] RPC/WebSocket endpoints are enabled and CORS is configured.
+- [x] Backend uses environment variables for endpoint and service account.
+- [x] All custom pallet extrinsics are implemented and tested in the backend.
+- [x] Error handling and logging are robust in backend integration.
+- [x] All steps, configs, and flows are documented in this file.
+- [ ] End-to-end tests for all extrinsics (register, approve, reward, report) are run and results documented.
+- [ ] Node monitoring and Polkadot-JS Apps dashboard are set up and verified.
+
+### Next Steps
+- Run the local testnet and use the backend to:
+  - Register a sample (`registerSample`)
+  - Approve a sample (`approveSample`)
+  - Distribute content and network rewards
+  - Report network contribution
+- Confirm all extrinsics succeed and events are emitted.
+- Check balances and state via Polkadot-JS Apps.
+- Document test results and update this checklist.
+
+---

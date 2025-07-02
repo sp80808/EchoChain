@@ -28,3 +28,5 @@
 - **Modular Pallet Structure**: Echochain adopts a modular approach with separate pallets for marketplace, compute, royalty distribution, and P2P integration. This allows for independent development and upgrades of each component.
 - **Decentralized Data Processing**: The compute pallet is designed to handle decentralized data processing, ensuring data integrity and availability across the network.
 - **Royalty Distribution Mechanism**: A key feature implemented on-chain to automate and transparently manage royalty payments, enhancing trust among participants.
+
+**Note:** The runtime now includes production-ready support for ink! smart contracts (pallet-contracts) and XCM (pallet-xcm) for cross-chain messaging and interoperability.

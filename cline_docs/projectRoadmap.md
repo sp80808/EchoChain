@@ -51,3 +51,5 @@ The Echochain project aims to develop a blockchain-based platform with various p
 - Design the architecture to support future addition of new pallets.
 - Plan for cross-chain compatibility to enhance interoperability (now enabled via XCM, pallet-xcm) and smart contract support (pallet-contracts).
 - Consider energy-efficient consensus mechanisms for long-term sustainability.
+
+**Milestone Note:** XCM (pallet-xcm) and smart contract (pallet-contracts) support are now integrated in the runtime, enabling cross-chain messaging and on-chain programmability.

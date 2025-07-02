@@ -1,8 +1,10 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import connectDB from './db';
 import authRoutes from './routes/auth';
 import sampleRoutes from './routes/samples';
+import userRoutes from './routes/users';
 import { setupRewardSystem } from './utils/rewardSystem';
 
 const app = express();
@@ -23,6 +25,6 @@ app.get('/', (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
+  logger.info(`Server is running on http://localhost:${port}`);
   setupRewardSystem(); // Initialize reward system
 });

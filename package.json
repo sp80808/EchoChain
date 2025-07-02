@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "@polkadot/api": "^16.3.1",
+    "dotenv": "^17.0.1",
+    "notistack": "^3.0.2",
+    "winston": "^3.17.0"
+  }
+}

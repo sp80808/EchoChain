@@ -1,4 +1,6 @@
-# Network Rewards Pallet Documentation
+# Network Rewards Pallet
+
+> **See also:** [Echochain Blockchain Spec](./echochain-blockchain.md), [Content Rewards Pallet](./content-rewards-pallet.md), [Main Documentation Index](./README.md)
 
 ## Overview
 The Network Rewards Pallet distributes ECHO token rewards to users who contribute to the P2P network by seeding files. Rewards are distributed automatically at regular intervals (e.g., weekly or monthly) using an off-chain worker, based on reported upload volume.

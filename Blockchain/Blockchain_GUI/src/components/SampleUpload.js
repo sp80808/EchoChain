@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { registerSample } from '../services/sampleService';
 import { useAccount } from '../contexts/AccountContext';
+import LoadingSpinner from './LoadingSpinner';
 
 function SampleUpload() {
   const [form, setForm] = useState({
@@ -43,7 +44,7 @@ function SampleUpload() {
         blockchainHash: ''
       });
     } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed');
+      setError(err.response?.data?.message || err.message || 'Registration failed. Please check your connection and try again.');
       setStatus('error');
     }
   };
@@ -64,7 +65,8 @@ function SampleUpload() {
         <button type="submit" disabled={status === 'submitting' || !account}>Register</button>
       </form>
       {!account && <div style={{ color: 'red' }}>Connect your wallet to register a sample.</div>}
-      {status === 'success' && <div style={{ color: 'green' }}>Sample registered successfully!</div>}
+      {status === 'submitting' && <><LoadingSpinner /><div>Registering sample on-chain. Please wait, this may take a few moments...</div></>}
+      {status === 'success' && <div style={{ color: 'green' }}>Sample registered successfully! (Backend & Blockchain confirmed)</div>}
       {status === 'error' && <div style={{ color: 'red' }}>{error}</div>}
     </div>
   );

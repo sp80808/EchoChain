@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { AccountContext } from '../contexts/AccountContext';
 import { getUserSamples } from '../services/sampleService';
+import LoadingSpinner from './LoadingSpinner';
 
 const UserSamples = () => {
   const { account } = useContext(AccountContext);
@@ -36,7 +37,7 @@ const UserSamples = () => {
   }
 
   if (loading) {
-    return <div>Loading samples...</div>;
+    return <><LoadingSpinner /><div>Loading your registered samples from the blockchain...</div></>;
   }
 
   if (error) {

@@ -7,8 +7,12 @@ struct CreatorProfileView: View {
     @State private var isLoading = true
     @State private var errorMessage: String = ""
     @State private var showingErrorAlert = false
+    @State private var isPlayingSample: String? = nil
+    @State private var isPurchasingSample: String? = nil
 
-    @StateObject private var backendAPIClient = RealBackendAPIClient()
+    @StateObject private var backendAPIClient = RealBackendAPIClient(authService: RealAuthService()) // Pass authService
+    @EnvironmentObject var authService: RealAuthService // Inject AuthService
+    @EnvironmentObject private var blockchainClient: RealBlockchainClient // Inject BlockchainClient for play/purchase actions
 
     var body: some View {
         VStack {
@@ -55,6 +59,34 @@ struct CreatorProfileView: View {
         } message: {
             Text(errorMessage)
         }
+    }
+
+    private func playSample(contentId: String, sampleId: String) async {
+        self.isPlayingSample = sampleId
+        do {
+            // Simulate audio playback
+            try await Task.sleep(nanoseconds: 2_000_000_000) // Simulate 2 seconds of playback
+            errorMessage = "Playing sample: \(contentId)"
+            showingErrorAlert = true
+        } catch {
+            errorMessage = "Failed to play sample: \(error.localizedDescription)"
+            showingErrorAlert = true
+        }
+        self.isPlayingSample = nil
+    }
+
+    private func purchaseSample(sample: Sample) async {
+        self.isPurchasingSample = sample.id
+        do {
+            print("Purchasing sample: \(sample.title)")
+            let txHash = try await blockchainClient.purchaseSample(sampleId: sample.id, price: sample.price, recipientAddress: sample.ownerAddress)
+            errorMessage = "Successfully purchased \(sample.title)! Transaction Hash: \(txHash)"
+            showingErrorAlert = true
+        } catch {
+            errorMessage = "Failed to purchase sample: \(error.localizedDescription)"
+            showingErrorAlert = true
+        }
+        self.isPurchasingSample = nil
     }
 
     private func fetchCreatorProfile() {

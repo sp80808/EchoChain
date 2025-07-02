@@ -1,4 +1,6 @@
-# Content Rewards Pallet Documentation
+# Content Rewards Pallet
+
+> **See also:** [Echochain Blockchain Spec](./echochain-blockchain.md), [Network Rewards Pallet](./network-rewards-pallet.md), [Main Documentation Index](./README.md)
 
 ## Overview
 The Content Rewards Pallet is responsible for distributing ECHO token rewards to users who have contributed a minimum number of approved samples. Rewards are distributed automatically at regular intervals (e.g., monthly) using an off-chain worker.

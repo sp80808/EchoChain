@@ -1,5 +1,7 @@
 # EchoChain Blockchain Documentation
 
+> **See also:** [Architecture Overview](./architecture.md), [Content Rewards Pallet](./content-rewards-pallet.md), [Network Rewards Pallet](./network-rewards-pallet.md), [Main Documentation Index](./README.md)
+
 ## Overview
 EchoChain is a novel, gas-free blockchain designed for decentralized music sample sharing, contribution rewards, and seamless integration with P2P and backend services.
 

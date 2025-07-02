@@ -9,7 +9,12 @@ import logger from './logger';
 const userRepository = AppDataSource.getRepository(User);
 
 // JWT Secret Key (should be stored securely in environment variables in production)
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  logger.error("JWT_SECRET is not defined in the environment variables. Please set it for security.");
+  process.exit(1);
+}
 
 // Mock password hashing (for demonstration purposes)
 const hashPassword = async (password: string): Promise<string> => {

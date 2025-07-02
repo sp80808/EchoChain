@@ -23,7 +23,12 @@ AppDataSource.initialize().then(() => {
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey'; // Fallback for development, use .env in production
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  logger.error("JWT_SECRET is not defined in the environment variables. Please set it for security.");
+  process.exit(1);
+} // JWT Secret Key (should be stored securely in environment variables in production)
 
 // Extend the Request interface to include the user property
 declare global {

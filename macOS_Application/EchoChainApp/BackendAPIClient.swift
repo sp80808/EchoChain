@@ -5,7 +5,12 @@ protocol BackendAPIClientProtocol {
 }
 
 class RealBackendAPIClient: BackendAPIClientProtocol {
-    private let baseURL = URL(string: "http://127.0.0.1:3000/api")!
+    private let baseURL = URL(string: "http://127.0.0.1:3001/api")!
+    private let authService: AuthServiceProtocol
+
+    init(authService: AuthServiceProtocol = RealAuthService()) {
+        self.authService = authService
+    }
 
     func fetchSamples(query: String?, category: String?, bpm: String?, key: String?, tags: String?, sortBy: String?, order: String?) async throws -> [Sample] {
         var urlComponents = URLComponents(url: baseURL.appendingPathComponent("samples"), resolvingAgainstBaseURL: false)!
@@ -45,7 +50,13 @@ class RealBackendAPIClient: BackendAPIClientProtocol {
             throw APIError.invalidURL
         }
 
-        let (data, response) = try await URLSession.shared.data(from: url)
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        if let token = authService.getToken() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "x-auth-token")
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw APIError.requestFailed
@@ -60,7 +71,13 @@ class RealBackendAPIClient: BackendAPIClientProtocol {
             throw APIError.invalidURL
         }
 
-        let (data, response) = try await URLSession.shared.data(from: url)
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        if let token = authService.getToken() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "x-auth-token")
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIError.requestFailed
@@ -86,7 +103,13 @@ class RealBackendAPIClient: BackendAPIClientProtocol {
             throw APIError.invalidURL
         }
 
-        let (data, response) = try await URLSession.shared.data(from: url)
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        if let token = authService.getToken() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "x-auth-token")
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLRESPONSE, httpResponse.statusCode == 200 else {
             throw APIError.requestFailed
@@ -116,7 +139,19 @@ struct Sample: Codable, Identifiable {
     let creatorId: String // Added for linking to creator profiles
 }
 
-enum APIError: Error {
+enum APIError: Error, LocalizedError {
     case invalidURL
-    case requestFailed
+    case requestFailed(String)
+    case userNotFound
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidURL:
+            return "Invalid URL for API request."
+        case .requestFailed(let message):
+            return "API request failed: \(message)"
+        case .userNotFound:
+            return "The requested user could not be found."
+        }
+    }
 }

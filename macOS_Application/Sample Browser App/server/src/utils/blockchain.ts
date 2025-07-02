@@ -1,32 +1,90 @@
+import { ApiPromise, WsProvider, Keyring } from '@polkadot/api';
+
+function getWsEndpoint() {
+  const username = process.env.POLKADOT_NODE_USERNAME;
+  const password = process.env.POLKADOT_NODE_PASSWORD;
+  const wsAuth = process.env.POLKADOT_WS_ENDPOINT_AUTH;
+  const wsPublic = process.env.POLKADOT_WS_ENDPOINT;
+  if (username && password && wsAuth) {
+    // Insert credentials into the URL: wss://username:password@host
+    const url = new URL(wsAuth);
+    url.username = username;
+    url.password = password;
+    return url.toString();
+  }
+  return wsPublic || 'ws://127.0.0.1:9944';
+}
+
 export const registerSampleOnBlockchain = async (
   ipfsCid: string,
   metadataIpfsCid: string,
   creatorId: string,
   additionalData?: any
 ): Promise<boolean> => {
-  console.log(
-    `[Blockchain Placeholder] Attempting to register sample on blockchain...`
-  );
-  console.log(`  IPFS CID: ${ipfsCid}`);
-  console.log(`  Metadata IPFS CID: ${metadataIpfsCid}`);
-  console.log(`  Creator ID: ${creatorId}`);
-  if (additionalData) {
-    console.log(`  Additional Data: ${JSON.stringify(additionalData)}`);
+  // Use environment variables for backend service account
+  const WS_ENDPOINT = getWsEndpoint();
+  const SERVICE_ACCOUNT_SEED = process.env.POLKADOT_SERVICE_ACCOUNT_SEED;
+
+  if (!SERVICE_ACCOUNT_SEED) {
+    console.warn('[Blockchain] No service account seed set. Falling back to placeholder logic.');
+    console.log(
+      `[Blockchain Placeholder] Attempting to register sample on blockchain...`
+    );
+    console.log(`  IPFS CID: ${ipfsCid}`);
+    console.log(`  Metadata IPFS CID: ${metadataIpfsCid}`);
+    console.log(`  Creator ID: ${creatorId}`);
+    if (additionalData) {
+      console.log(`  Additional Data: ${JSON.stringify(additionalData)}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    const success = Math.random() > 0.1;
+    if (success) {
+      console.log("[Blockchain Placeholder] Sample registered successfully.");
+    } else {
+      console.error("[Blockchain Placeholder] Failed to register sample (simulated error).");
+    }
+    return success;
   }
 
-  // Simulate a blockchain transaction delay
-  await new Promise((resolve) => setTimeout(resolve, 2000));
+  try {
+    const provider = new WsProvider(WS_ENDPOINT);
+    const api = await ApiPromise.create({ provider });
+    const keyring = new Keyring({ type: 'sr25519' });
+    const serviceAccount = keyring.addFromUri(SERVICE_ACCOUNT_SEED);
 
-  // Simulate a random failure for testing purposes (e.g., 10% chance of failure)
-  const success = Math.random() > 0.1;
+    // Construct the extrinsic (adjust arguments as needed for your pallet)
+    const tx = api.tx.sampleRegistry.registerSample(
+      ipfsCid, // or sampleId if required
+      metadataIpfsCid,
+      creatorId // or other fields as required by your pallet
+    );
 
-  if (success) {
-    console.log("[Blockchain Placeholder] Sample registered successfully.");
-  } else {
-    console.error("[Blockchain Placeholder] Failed to register sample (simulated error).");
+    return new Promise<boolean>((resolve, reject) => {
+      tx.signAndSend(serviceAccount, ({ status, dispatchError }) => {
+        if (dispatchError) {
+          if (dispatchError.isModule) {
+            const decoded = api.registry.findMetaError(dispatchError.asModule);
+            const { docs, name, section } = decoded;
+            console.error(`Blockchain error: ${section}.${name}: ${docs.join(' ')}`);
+          } else {
+            console.error(`Blockchain error: ${dispatchError.toString()}`);
+          }
+          resolve(false);
+        } else if (status.isInBlock) {
+          console.log(`Sample registered on-chain in block ${status.asInBlock}`);
+          resolve(true);
+        } else if (status.isFinalized) {
+          console.log(`Transaction finalized at block ${status.asFinalized}`);
+        }
+      }).catch((err: any) => {
+        console.error('Blockchain tx failed:', err);
+        resolve(false);
+      });
+    });
+  } catch (err) {
+    console.error('[Blockchain] Failed to register sample on-chain:', err);
+    return false;
   }
-
-  return success;
 };
 
 export const getWalletBalanceFromBlockchain = async (walletAddress: string): Promise<number> => {

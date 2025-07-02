@@ -128,7 +128,7 @@ router.post('/', [auth, upload.single('sample')], async (req, res) => {
         }
         fs.rmSync(outputDir, { recursive: true, force: true }); // Clean up stem files
       } else {
-        console.error(`Stem separation failed: ${separationResult.error}`);
+        logger.error(`Stem separation failed: ${separationResult.error}`);
       }
     }
 

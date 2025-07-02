@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from '../auth/User';
 import { getWalletBalanceFromBlockchain } from '../utils/blockchain';
+import crypto from 'crypto'; // Import crypto for generating referral codes
+import logger from '../utils/logger';
 
 const router = Router();
 
@@ -71,7 +73,7 @@ router.get('/me', auth, async (req, res) => {
     const balance = await getWalletBalanceFromBlockchain(user.walletAddress);
     res.json({ ...user.toObject(), balance, referralCode: user.referralCode });
   } catch (err) {
-    console.error(err.message);
+    logger.error(err.message);
     res.status(500).send('Server error');
   }
 });

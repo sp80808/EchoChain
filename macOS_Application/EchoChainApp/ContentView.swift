@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var p2pClient = RealP2PClient()
+    @EnvironmentObject var authService: RealAuthService // Inject AuthService
 
     var body: some View {
         NavigationView {
@@ -20,7 +21,7 @@ struct ContentView: View {
                 }
                 .padding(.bottom, 10)
 
-                NavigationLink(destination: WalletView()) {
+                NavigationLink(destination: WalletView().environmentObject(authService)) { // Pass authService
                     Text("Go to Wallet")
                         .font(.title2)
                         .padding()
@@ -30,7 +31,7 @@ struct ContentView: View {
                 }
                 .padding(.bottom, 20)
 
-                NavigationLink(destination: SampleBrowserView()) {
+                NavigationLink(destination: SampleBrowserView().environmentObject(authService)) { // Pass authService
                     Text("Browse Samples")
                         .font(.title2)
                         .padding()

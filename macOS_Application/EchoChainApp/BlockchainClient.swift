@@ -44,7 +44,8 @@ class RealBlockchainClient: BlockchainClientProtocol {
 
     private let nodeURL = URL(string: "ws://127.0.0.1:9945")! // Alice's WS port
     private let secureStorage = SecureStorage()
-    
+    private let authService: AuthServiceProtocol // Add AuthService dependency
+
     func isBiometricsEnabled() -> Bool {
         return secureStorage.canEvaluatePolicy()
     }
@@ -71,7 +72,8 @@ class RealBlockchainClient: BlockchainClientProtocol {
     private var api: Api<DynamicConfig>?
     private var currentKeyPair: Sr25519KeyPair? // Manages the active keypair for signing transactions.
 
-    init() {
+    init(authService: AuthServiceProtocol = RealAuthService()) { // Inject AuthService
+        self.authService = authService
         Task {
             do {
                 // Initialize Substrate API
@@ -146,7 +148,7 @@ class RealBlockchainClient: BlockchainClientProtocol {
         print("New wallet created: \(self.walletAddress)")
 
         // Register user with backend, including referrerCode
-        await registerUserWithBackend(email: "\(self.walletAddress)@echochain.com", password: newMnemonic, referrerCode: referrerCode)
+        try await authService.register(email: "\(self.walletAddress)@echochain.com", password: newMnemonic, referrerCode: referrerCode)
 
         await self.fetchBalance(requireBiometrics: requireBiometrics)
         await self.fetchTransactionHistory(requireBiometrics: requireBiometrics)
@@ -163,7 +165,7 @@ class RealBlockchainClient: BlockchainClientProtocol {
         print("Wallet imported: \(self.walletAddress)")
 
         // Register user with backend, including referrerCode
-        await registerUserWithBackend(email: "\(self.walletAddress)@echochain.com", password: mnemonic, referrerCode: referrerCode)
+        try await authService.register(email: "\(self.walletAddress)@echochain.com", password: mnemonic, referrerCode: referrerCode)
 
         await self.fetchBalance(requireBiometrics: requireBiometrics)
         await self.fetchTransactionHistory(requireBiometrics: requireBiometrics)
@@ -356,7 +358,13 @@ class RealBlockchainClient: BlockchainClientProtocol {
             throw BlockchainClientError.invalidURL
         }
 
-        let (data, response) = try await URLSession.shared.data(from: url)
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        if let token = authService.getToken() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "x-auth-token")
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw BlockchainClientError.requestFailed("Failed to fetch referred users count")
@@ -576,19 +584,19 @@ enum BlockchainClientError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .nodeNotConnected:
-            return "Not connected to a blockchain node."
+            return "Connection to the blockchain node failed. Please check your network and node status."
         case .walletNotLoaded:
-            return "Wallet not loaded. Please create or import a wallet first."
+            return "Your wallet is not loaded. Please create a new wallet or import an existing one to proceed."
         case .transactionFailed(let message):
-            return "Transaction failed: \(message)"
+            return "Blockchain transaction failed: \(message). Please try again."
         case .metadataRegistrationFailed(let message):
-            return "Sample metadata registration failed: \(message)"
+            return "Failed to register sample metadata on the blockchain: \(message)."
         case .unsupportedOperation(let message):
-            return message
+            return "This operation is not supported on your device or configuration: \(message)."
         case .invalidURL:
-            return "Invalid URL for API request."
+            return "An internal error occurred: Invalid API URL. Please contact support."
         case .requestFailed(let message):
-            return "API request failed: \(message)"
+            return "Network request to the backend failed: \(message). Please check your internet connection."
         }
     }
 }

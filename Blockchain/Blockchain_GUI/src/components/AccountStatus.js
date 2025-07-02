@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { web3Enable, web3Accounts, web3FromSource } from '@polkadot/extension-dapp';
 import { ApiPromise, WsProvider } from '@polkadot/api';
 import { useAccount } from '../contexts/AccountContext';
+import LoadingSpinner from './LoadingSpinner';
 
 const WS_ENDPOINT = 'ws://127.0.0.1:9944'; // Updated for local node
 
@@ -68,7 +69,7 @@ function AccountStatus() {
   }
 
   if (status === 'connecting') {
-    return <div>Connecting to wallet...</div>;
+    return <><LoadingSpinner /><div>Connecting to wallet. Please approve the connection in your extension...</div></>;
   }
 
   return (

@@ -76,6 +76,8 @@ pub mod pallet {
         ComputeTaskReassigned(u32, T::AccountId),
         /// Secure off-chain task initiated with TEE [task_id]
         SecureOffChainTaskInitiated(u32),
+        /// Request for external data initiated [task_id, endpoint]
+        ExternalDataRequested(u32, Vec<u8>),
     }
 
     /// Storage for compute tasks
@@ -335,6 +337,27 @@ pub mod pallet {
             Ok(())
         }
 
+        /// Request data from an external source for a compute task
+        #[pallet::weight(5_000)]
+        pub fn request_external_data(
+            origin: OriginFor<T>,
+            task_id: u32,
+            endpoint: Vec<u8>
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            let task = ComputeTasks::<T>::get(task_id).ok_or(Error::<T>::TaskNotFound)?;
+            ensure!(
+                task.status == TaskStatus::Created && task.creator == who,
+                Error::<T>::UnauthorizedWorker
+            );
+
+            // Emit an event to signal the need for external data retrieval
+            // An off-chain worker or oracle service should listen for this event and fetch the data
+            // TODO: Implement off-chain worker integration to handle data retrieval from the specified endpoint
+            Self::deposit_event(Event::ExternalDataRequested(task_id, endpoint));
+            Ok(())
+        }
+
         /// Verify the result of a compute task using consensus
                 #[pallet::weight(10_000)]
                 pub fn verify_result(
@@ -402,34 +425,15 @@ pub mod pallet {
                     consensus_result
                 }
 
-        /// Function to perform data processing (placeholder)
+        /// Function to perform data processing (placeholder for off-chain integration)
         pub fn process_data(data: &Vec<u8>) -> Vec<u8> {
-            // Implement your data processing logic here
-            // This is just a placeholder, replace with actual processing
-            // For now, we will fetch data from a mock Chainlink API
-            use reqwest::blocking::Client;
-            use serde::Deserialize;
-
-            #[derive(Deserialize)]
-            struct ApiResponse {
-                data: String,
-            }
-
-            let client = Client::new();
-            let response = match client
-                .get("https://mockapi.io/api/v1/data") // Replace with your Chainlink API endpoint
-                .send()
-                {
-                    Ok(response) => response,
-                    Err(_) => return data.clone(), // Return original data on error
-                };
-
-            let api_response: ApiResponse = match response.json::<ApiResponse>() {
-                Ok(api_response) => api_response,
-                Err(_) => return data.clone(), // Return original data on error
-            };
-
-            api_response.data.into_bytes()
+            // This function serves as a placeholder for data processing logic.
+            // In a production environment, direct HTTP requests are not feasible due to no_std constraints.
+            // Instead, data retrieval from external sources should be handled by off-chain workers or oracles.
+            // The processed data would then be submitted to the pallet for on-chain verification and storage.
+            // TODO: Integrate with off-chain worker or oracle service (e.g., Chainlink, Acurast) for external data retrieval.
+            // For now, return the input data unchanged as a placeholder.
+            data.clone()
         }
 
         #[pallet::error]

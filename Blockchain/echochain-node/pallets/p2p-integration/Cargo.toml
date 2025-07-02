@@ -4,13 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-frame-support = { default-features = false, version = "4.0.0-dev" }
-frame-system = { default-features = false, version = "4.0.0-dev" }
-sp-std = { default-features = false, version = "4.0.0-dev" }
+frame-support = { default-features = false, path = "../../../polkadot-sdk/substrate/frame/support" }
+frame-system = { default-features = false, path = "../../../polkadot-sdk/substrate/frame/system" }
+sp-std = { default-features = false, path = "../../../polkadot-sdk/substrate/primitives/std" }
 pallet-network-rewards = { path = "../network-rewards", default-features = false }
 pallet-echochain-compute = { path = "../echochain-compute", default-features = false }
 pallet-echochain-marketplace = { path = "../echochain-marketplace", default-features = false }
-frame-benchmarking = { default-features = false, optional = true, path = "../../../../polkadot-sdk/substrate/frame/benchmarking" }
+frame-benchmarking = { default-features = false, optional = true, path = "../../../polkadot-sdk/substrate/frame/benchmarking" }
 
 [features]
 default = ["std"]

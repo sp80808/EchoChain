@@ -13,13 +13,13 @@ repository = "https://github.com/echochain/echochain-node/"
 codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = ["derive"] }
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
 
-frame-support = { version = "4.0.0-dev", default-features = false, path = "../../../frame/support" }
-frame-system = { version = "4.0.0-dev", default-features = false, path = "../../../frame/system" }
-frame-benchmarking = { version = "4.0.0-dev", default-features = false, path = "../../../frame/benchmarking", optional = true }
-frame-executive = { version = "4.0.0-dev", default-features = false, path = "../../../frame/executive" }
+frame-support = { default-features = false, path = "../../../polkadot-sdk/substrate/frame/support" }
+frame-system = { default-features = false, path = "../../../polkadot-sdk/substrate/frame/system" }
+frame-benchmarking = { default-features = false, optional = true, path = "../../../polkadot-sdk/substrate/frame/benchmarking" }
+frame-executive = { default-features = false, path = "../../../polkadot-sdk/substrate/frame/executive" }
 
-sp-std = { version = "8.0.0", default-features = false, path = "../../../primitives/std" }
-sp-runtime = { version = "24.0.0", default-features = false, path = "../../../primitives/runtime" }
+sp-std = { default-features = false, path = "../../../polkadot-sdk/substrate/primitives/std" }
+sp-runtime = { default-features = false, path = "../../../polkadot-sdk/substrate/primitives/runtime" }
 
 # Pallets that this pallet interacts with
 pallet-balances = { version = "4.0.0-dev", default-features = false, path = "../../../frame/balances" }

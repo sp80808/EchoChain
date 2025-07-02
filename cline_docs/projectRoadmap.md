@@ -17,7 +17,7 @@ The Echochain project aims to develop a blockchain-based platform with various p
 
 ### 3. Compute Pallet
 - [ ] Develop a compute pallet for decentralized data processing.
-- [ ] Integrate with external data sources and APIs.
+- [x] Integrate with external data sources and APIs (initial mechanism for requesting external data implemented).
 - [ ] Ensure efficient task distribution and result verification.
 
 ### 4. Royalty Distribution Pallet

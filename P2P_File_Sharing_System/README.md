@@ -125,3 +125,60 @@ Supported message types:
 Responses are JSON objects with a `status` field (`success` or `error`) and additional data as appropriate.
 
 See `node.py` for the full implementation and `api.py` for the local API command structure. 
+
+## Verification & Testing Checklist
+
+- [ ] All modules (`networking.py`, `dht.py`, `file_manager.py`, `api.py`, `blockchain.py`) importable and testable
+- [ ] Local API endpoints respond as documented
+- [ ] P2P message routing works for all supported types
+- [ ] Blockchain stubs callable from API
+- [ ] Legacy node compatibility wrapper (`DeprecatedP2PNode`) works
+
+For full integration context, see the [EchoChain Documentation and Development Plan](../../docs/EchoChain_Documentation_and_Development_Plan.md). 
+
+## API Usage Examples
+
+### Connecting to the Local API (Python Example)
+```python
+import socket
+import json
+
+def send_api_command(command):
+    with socket.create_connection(('127.0.0.1', 9000)) as sock:
+        sock.sendall(json.dumps(command).encode())
+        response = sock.recv(4096)
+        return json.loads(response.decode())
+
+# Example: Add a file
+add_file_cmd = {
+    "type": "local_add_file",
+    "payload": {"filepath": "/path/to/sample.wav"}
+}
+print(send_api_command(add_file_cmd))
+
+# Example: Announce content
+announce_cmd = {
+    "type": "local_announce_content",
+    "payload": {"content_hash": "Qm..."}
+}
+print(send_api_command(announce_cmd))
+
+# Example: List all available content
+list_cmd = {
+    "type": "local_request_content_info",
+    "payload": {"content_hash": "all_available_content"}
+}
+print(send_api_command(list_cmd))
+```
+
+### Supported Commands (Summary)
+- `local_add_file`: Add a file to the node.
+- `local_announce_content`: Announce a file/content hash to the network.
+- `local_request_content_info`: Get peers for a content hash or list all available content.
+- `local_request_file`: Request a file download from the network.
+- `local_list_content`: List all content hashes in the DHT.
+- `local_register_file_on_chain`: Register file metadata on the blockchain (stub).
+- `local_verify_file_on_chain`: Verify file metadata on the blockchain (stub).
+- `local_audio_analysis`: Get audio analysis for a file.
+- `local_find_by_key`: Find audio files by musical key.
+- `local_audio_summary`: Get a summary of all audio files. 

@@ -4,6 +4,11 @@
 
 EchoChain is a decentralized platform for music sample sharing, computation, and royalty distribution, combining blockchain, P2P, and modern UI/UX for creators and contributors.
 
+## 🚀 What’s New (July 2024)
+- Modular P2P File Sharing System: Python-based, fully modularized, with new orchestrator and local API. See [P2P File Sharing System](../P2P_File_Sharing_System/README.md).
+- Blockchain Node Integration: Improved backend and GUI integration, robust error handling, and new verification checklist. See [Node Deployment Architecture](./EchoChain_Node_Deployment_Architecture.md).
+- Automation & Security: Chainstack endpoint management scripts, secure `.env` practices, and CI/CD improvements.
+
 ## 📚 Main Documents
 
 - [EchoChain Documentation and Development Plan](./EchoChain_Documentation_and_Development_Plan.md)

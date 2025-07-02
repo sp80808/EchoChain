@@ -6,16 +6,18 @@ pub use pallet::*;
 pub mod pallet {
     use frame_support::pallet_prelude::*;
     use frame_system::pallet_prelude::*;
-    use ark_groth16::Groth16;
-    use ark_relations::r1cs::ConstraintSystem;
-    use ark_serialize::CanonicalDeserialize;
-    use ark_ec::PairingEngine;
-    use ark_std::rand::thread_rng;
-    use ark_std::UniformRand;
-    use sp_runtime::traits::CheckedAdd;
+    use frame_support::traits::{Currency, ExistenceRequirement};
+    use sp_runtime::traits::{CheckedAdd, Saturating};
     use sp_std::collections::btree_map::BTreeMap;
     use sp_std::vec::Vec;
     use sp_std::prelude::*;
+    use frame_support::log;
+    use sp_runtime::offchain::{self as rt_offchain, Duration};
+    use sp_runtime::transaction_validity::{
+        InvalidTransaction, TransactionSource, TransactionValidity, ValidTransaction,
+    };
+
+    type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
     #[pallet::pallet]
         #[pallet::generate_store(pub(super) trait Store)]
@@ -41,6 +43,11 @@ pub mod pallet {
         #[pallet::storage]
         #[pallet::getter(fn worker_weights)]
         pub type WorkerWeights<T: Config> = StorageMap<_, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
+
+        /// Storage for worker loads.
+        #[pallet::storage]
+        #[pallet::getter(fn worker_load)]
+        pub type WorkerLoad<T: Config> = StorageMap<_, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
 
     /// Configure the pallet by specifying the parameters and types on which it depends.
     #[pallet::config]
@@ -78,6 +85,8 @@ pub mod pallet {
         SecureOffChainTaskInitiated(u32),
         /// Request for external data initiated [task_id, endpoint]
         ExternalDataRequested(u32, Vec<u8>),
+        /// External data submitted [task_id]
+        ExternalDataSubmitted(u32),
     }
 
     /// Storage for compute tasks
@@ -90,11 +99,17 @@ pub mod pallet {
     #[pallet::getter(fn task_results)]
     pub type TaskResults<T> = StorageMap<_, Blake2_128Concat, u32, ResultInfo<T::AccountId, T::Hash>, OptionQuery>;
 
+    /// Storage for verification receipts
+    #[pallet::storage]
+    #[pallet::getter(fn verification_receipts)]
+    pub type VerificationReceipts<T> = StorageMap<_, Blake2_128Concat, u32, VerificationReceipt<T::AccountId, T::Hash>, OptionQuery>;
+
     /// Task information structure
     #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
     pub struct TaskInfo<AccountId, Hash, BlockNumber> {
         creator: AccountId,
         task_hash: Hash,
+        data: Option<Vec<u8>>,
         assigned_worker: Option<AccountId>,
         status: TaskStatus,
         creation_block: BlockNumber,
@@ -115,6 +130,21 @@ pub mod pallet {
         Assigned,
         Completed,
         Verified,
+    }
+
+    /// Verification receipt structure
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+    pub struct VerificationReceipt<AccountId, Hash> {
+        verifier: AccountId,
+        result_hash: Hash,
+        signature: Vec<u8>,
+    }
+
+    /// Verification error enum
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+    pub enum VerificationError {
+        SignatureMismatch,
+        ResultMismatch,
     }
 
     #[pallet::call]
@@ -138,6 +168,7 @@ pub mod pallet {
             let task_info = TaskInfo {
                 creator: who.clone(),
                 task_hash,
+                data: None,
                 assigned_worker: None,
                 status: TaskStatus::Created,
                 creation_block: <frame_system::Pallet<T>>::block_number(),
@@ -147,23 +178,16 @@ pub mod pallet {
             Ok(())
         }
 
-        /// Assign a compute task to a worker using weighted round-robin
+        /// Assign a compute task to a worker
         #[pallet::weight(5_000)]
         pub fn assign_task(
             origin: OriginFor<T>,
             task_id: u32,
             available_workers: Vec<T::AccountId>
         ) -> DispatchResult {
-            let _worker = ensure_signed(origin)?;
+            let _promoter = ensure_signed(origin)?;
 
-            // Ensure there are available workers
             ensure!(!available_workers.is_empty(), Error::<T>::NoAvailableWorkers);
-
-            // Get the next worker to assign the task to
-            let mut next_worker = NextWorker::<T>::get();
-
-            // Ensure the next worker is in the list of available workers
-            let worker = available_workers.iter().find(|w| **w == next_worker).ok_or(Error::<T>::WorkerNotFound)?.clone();
 
             let mut task = ComputeTasks::<T>::get(task_id).ok_or(Error::<T>::TaskNotFound)?;
             ensure!(
@@ -171,44 +195,33 @@ pub mod pallet {
                 Error::<T>::TaskAlreadyAssigned
             );
 
+            let worker = match TaskDistributionAlgorithm::<T>::get() {
+                TaskDistribution::WeightedRoundRobin => {
+                    // Simple Round-Robin implementation
+                    let next_worker_account = NextWorker::<T>::get();
+                    let current_index = available_workers.iter().position(|w| *w == next_worker_account).unwrap_or(0);
+                    let selected_worker = available_workers[current_index].clone();
+                    let next_index = (current_index + 1) % available_workers.len();
+                    NextWorker::<T>::put(available_workers[next_index].clone());
+                    Ok(selected_worker)
+                }
+                TaskDistribution::LeastLoaded => {
+                    // Find the worker with the minimum load
+                    available_workers
+                        .into_iter()
+                        .min_by_key(|w| WorkerLoad::<T>::get(w))
+                        .ok_or(Error::<T>::NoAvailableWorkers.into())
+                }
+            }?;
+
             task.assigned_worker = Some(worker.clone());
             task.status = TaskStatus::Assigned;
             ComputeTasks::<T>::insert(task_id, task);
-            Self::deposit_event(Event::ComputeTaskAssigned(task_id, worker.clone()));
 
-            // Update the next worker based on the selected algorithm
-            match TaskDistributionAlgorithm::<T>::get() {
-                TaskDistribution::WeightedRoundRobin => {
-                    let weight = WorkerWeights::<T>::get(&worker);
-                    let mut assigned_tasks = 0;
-                    while assigned_tasks < weight {
-                        next_worker = available_workers.iter().find(|w| **w != next_worker).ok_or(Error::<T>::WorkerNotFound)?.clone();
-                        assigned_tasks += 1;
-                    }
-                    NextWorker::<T>::put(next_worker);
-                }
-                TaskDistribution::LeastLoaded => {
-                    // Find the worker with the least number of assigned tasks
-                    let mut least_loaded_worker: Option<T::AccountId> = None;
-                    let mut min_assigned_tasks: u32 = u32::MAX;
+            // Increment the worker's load
+            WorkerLoad::<T>::mutate(&worker, |load| *load = load.saturating_add(1));
 
-                    for w in &available_workers {
-                        let weight = WorkerWeights::<T>::get(w); // Assuming WorkerWeights can also represent current load
-                        if weight < min_assigned_tasks {
-                            min_assigned_tasks = weight;
-                            least_loaded_worker = Some(w.clone());
-                        }
-                    }
-
-                    // Assign the task to the least loaded worker
-                    if let Some(least_loaded) = least_loaded_worker {
-                        NextWorker::<T>::put(least_loaded);
-                    } else {
-                        // If no worker is found, return an error
-                        return Err(Error::<T>::WorkerNotFound.into());
-                    }
-                }
-            }
+            Self::deposit_event(Event::ComputeTaskAssigned(task_id, worker));
 
             Ok(())
         }
@@ -238,6 +251,10 @@ pub mod pallet {
             let mut updated_task = task;
             updated_task.status = TaskStatus::Completed;
             ComputeTasks::<T>::insert(task_id, updated_task);
+
+            // Decrement the worker's load
+            WorkerLoad::<T>::mutate(&worker, |load| *load = load.saturating_sub(1));
+
             Self::deposit_event(Event::ComputeResultSubmitted(task_id, worker));
             Ok(())
         }
@@ -308,6 +325,11 @@ pub mod pallet {
                                 let mut updated_task = task;
                                 updated_task.assigned_worker = Some(new_worker.clone());
                                 ComputeTasks::<T>::insert(task_id, updated_task);
+
+                                // Decrement the timed-out worker's load and increment the new worker's load
+                                WorkerLoad::<T>::mutate(current_worker, |load| *load = load.saturating_sub(1));
+                                WorkerLoad::<T>::mutate(&new_worker, |load| *load = load.saturating_add(1));
+
                                 Self::deposit_event(Event::ComputeTaskReassigned(task_id, new_worker));
                             }
                         }
@@ -355,12 +377,38 @@ pub mod pallet {
             // An off-chain worker or oracle service should listen for this event and fetch the data
             Self::deposit_event(Event::ExternalDataRequested(task_id, endpoint.clone()));
             
-            // Placeholder for off-chain worker integration
-            // In a full implementation, an off-chain worker would be triggered here to fetch data
-            // from the specified endpoint and submit it back to the pallet via a callback or extrinsic.
-            // For now, log the request as an event. Future development will include:
-            // - Integration with a service like Chainlink or Acurast for data retrieval
-            // - A callback mechanism to update the task with retrieved data
+            // Logic for triggering off-chain worker integration
+            // In a full implementation, this would:
+            // 1. Create a unique request ID for tracking the external data request
+            // 2. Store the request details in a storage map for off-chain workers to access
+            // 3. Trigger an off-chain worker task to fetch data from the specified endpoint
+            // 4. Implement a callback mechanism (via another extrinsic) for the worker to submit data back to the pallet
+            // For now, the event emission serves as the trigger point for off-chain workers.
+            // Future development will include:
+            // - Integration with a service like Chainlink or Acurast for secure and reliable data retrieval
+            // - Storage for tracking pending external data requests and their statuses
+            // - Timeout mechanisms to handle cases where data retrieval fails or takes too long
+            Ok(())
+        }
+
+        /// Submit external data for a compute task
+        #[pallet::weight(5_000)]
+        pub fn submit_external_data(
+            origin: OriginFor<T>,
+            task_id: u32,
+            data: Vec<u8>
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            let mut task = ComputeTasks::<T>::get(task_id).ok_or(Error::<T>::TaskNotFound)?;
+            ensure!(
+                task.creator == who,
+                Error::<T>::UnauthorizedWorker
+            );
+
+            task.data = Some(data);
+            ComputeTasks::<T>::insert(task_id, task);
+            Self::deposit_event(Event::ExternalDataSubmitted(task_id));
             Ok(())
         }
 
@@ -369,7 +417,8 @@ pub mod pallet {
         pub fn verify_result(
             origin: OriginFor<T>,
             task_id: u32,
-            results: Vec<T::Hash>
+            result_hash: T::Hash,
+            signature: Vec<u8>
         ) -> DispatchResult {
             let verifier = ensure_signed(origin)?;
 
@@ -379,71 +428,42 @@ pub mod pallet {
                 Error::<T>::TaskNotCompleted
             );
 
-            // Ensure that there are results to verify
-            ensure!(!results.is_empty(), Error::<T>::NoResultsToVerify);
+            let result = TaskResults::<T>::get(task_id).ok_or(Error::<T>::ResultNotFound)?;
 
-            // Calculate the consensus result
-            let consensus_result = Self::calculate_consensus(results.clone()).ok_or(Error::<T>::NoConsensus)?;
-
-            let mut result = TaskResults::<T>::get(task_id).ok_or(Error::<T>::ResultNotFound)?;
-
-            // Enhanced verification logic placeholder
-            // In a full implementation, this would include:
-            // - Cross-referencing the result hash with a known correct hash or benchmark result
-            // - Involving multiple verifiers for a stronger consensus mechanism
-            // - Potentially re-running the computation on a trusted node for comparison
-            // For now, we mark the result as verified if the consensus result matches the stored result
-            if result.result_hash == consensus_result {
-                result.verified = true;
-                TaskResults::<T>::insert(task_id, result);
-                // Change task status to verified
-                let mut updated_task = task;
-                updated_task.status = TaskStatus::Verified;
-                ComputeTasks::<T>::insert(task_id, updated_task);
-                Self::deposit_event(Event::ComputeResultVerified(task_id, verifier));
-            } else {
-                // If the consensus result does not match the stored result, return an error
+            if result.result_hash != result_hash {
                 return Err(Error::<T>::VerificationFailed.into());
             }
+
+            let receipt = VerificationReceipt {
+                verifier: verifier.clone(),
+                result_hash,
+                signature,
+            };
+
+            VerificationReceipts::<T>::insert(task_id, receipt);
+
+            let mut updated_task = task;
+            updated_task.status = TaskStatus::Verified;
+            ComputeTasks::<T>::insert(task_id, updated_task);
+
+            Self::deposit_event(Event::ComputeResultVerified(task_id, verifier));
 
             Ok(())
         }
         
-                /// Calculate the consensus result from a list of results
-                pub fn calculate_consensus(results: Vec<T::Hash>) -> Option<T::Hash> {
-                    use sp_std::collections::btree_map::BTreeMap;
-        
-                    // Count the occurrences of each result
-                    let mut counts: BTreeMap<T::Hash, u32> = BTreeMap::new();
-                    for result in results {
-                        let count = counts.entry(result).or_insert(0);
-                        *count += 1;
-                    }
-        
-                    // Find the result with the highest count
-                    let mut consensus_result: Option<T::Hash> = None;
-                    let mut max_count: u32 = 0;
-                    for (result, count) in counts {
-                        if count > max_count {
-                            consensus_result = Some(result);
-                            max_count = count;
-                        }
-                    }
-        
-                    consensus_result
-                }
-
-        /// Function to perform data processing (placeholder for off-chain integration)
+                /// Function to perform data processing (placeholder for off-chain integration)
         pub fn process_data(data: &Vec<u8>) -> Vec<u8> {
-            // This function serves as a placeholder for data processing logic.
+            // This function implements a basic data processing logic as a starting point.
             // In a production environment, direct HTTP requests are not feasible due to no_std constraints.
             // Instead, data retrieval from external sources should be handled by off-chain workers or oracles.
             // The processed data would then be submitted to the pallet for on-chain verification and storage.
             // Future development will include:
             // - Integration with off-chain workers or oracle services (e.g., Chainlink, Acurast) for external data retrieval.
             // - Mechanisms to process data securely and efficiently before returning results.
-            // For now, return the input data unchanged as a placeholder.
-            data.clone()
+            // For now, implement a simple transformation by reversing the input data bytes as a basic processing example.
+            let mut processed = data.clone();
+            processed.reverse();
+            processed
         }
 
         #[pallet::error]
@@ -566,6 +586,49 @@ pub mod pallet {
         }
     }
 
+    #[pallet::validate_unsigned]
+    impl<T: Config> ValidateUnsigned for Pallet<T> {
+        type Call = Call<T>;
+
+        fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+            if let Call::submit_external_data { task_id, .. } = call {
+                ValidTransaction::with_tag_prefix("EchochainCompute")
+                    .and_provides(task_id)
+                    .build()
+            } else {
+                InvalidTransaction::Call.into()
+            }
+        }
+    }
+
+    #[pallet::hooks]
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        fn offchain_worker(block_number: T::BlockNumber) {
+            for event in frame_system::Pallet::<T>::events() {
+                if let Event::ExternalDataRequested(task_id, endpoint) = event.event {
+                    if let Err(e) = Self::fetch_and_log_external_data(task_id, &endpoint) {
+                        log::error!("Error fetching data for task {}: {:?}", task_id, e);
+                    }
+                }
+            }
+        }
+    }
+
+    impl<T: Config> Pallet<T> {
+        fn fetch_and_log_external_data(task_id: u32, endpoint: &[u8]) -> Result<(), &'static str> {
+            let endpoint_str = sp_std::str::from_utf8(endpoint).map_err(|_| "Invalid endpoint URL")?;
+            log::info!("Fetching data for task {} from endpoint: {}", task_id, endpoint_str);
+
+            let response = reqwest::blocking::get(endpoint_str).map_err(|_| "Failed to fetch data")?;
+            let data = response.bytes().map_err(|_| "Failed to read response bytes")?.to_vec();
+
+            let call = Call::submit_external_data { task_id, data };
+            let _ = rt_offchain::submit_unsigned_transaction(call.into()).map_err(|_| "Failed to submit unsigned transaction");
+
+            Ok(())
+        }
+    }
+
     pub trait ComputeInterface<AccountId> {
         fn create_task(who: AccountId, task_id: u32, data: Vec<u8>, zkp: Vec<u8>) -> DispatchResult;
     }
@@ -585,10 +648,25 @@ pub mod pallet {
                 return Err(Error::<T>::InvalidZKP.into());
             }
 
-            // Perform data processing.
+            // Ensure task does not already exist
+            ensure!(
+                !ComputeTasks::<T>::contains_key(task_id),
+                Error::<T>::TaskAlreadyExists
+            );
+
+            // Perform data processing
             let _processed_data = Self::process_data(&data);
 
-            // This is a stub. The actual implementation would create a compute task.
+            // Create and store the task
+            let task_info = TaskInfo {
+                creator: who.clone(),
+                task_hash: T::Hashing::hash_of(&data),
+                data: Some(data),
+                assigned_worker: None,
+                status: TaskStatus::Created,
+                creation_block: <frame_system::Pallet<T>>::block_number(),
+            };
+            ComputeTasks::<T>::insert(task_id, task_info);
             Pallet::<T>::deposit_event(Event::ComputeTaskCreated(task_id));
             Ok(())
         }

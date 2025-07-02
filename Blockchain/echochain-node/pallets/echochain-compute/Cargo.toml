@@ -18,6 +18,7 @@ std = [
     "frame-system/std",
     "sp-std/std",
     "frame-benchmarking?/std",
+    "frame-support/offchain",
 ]
 runtime-benchmarks = [
     "frame-benchmarking/runtime-benchmarks",

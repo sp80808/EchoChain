@@ -45,7 +45,20 @@ class LocalAPI:
         if cmd_type == 'local_add_file':
             file_hash = self.node.file_manager.add_file(payload.get('filepath'))
             if file_hash:
-                return {'status': 'success', 'file_hash': file_hash}
+                # Get audio analysis if available
+                analysis = self.node.file_manager.get_audio_analysis(file_hash)
+                response = {'status': 'success', 'file_hash': file_hash}
+                
+                # Include audio analysis in response
+                if analysis and analysis.get('is_audio'):
+                    response['audio_analysis'] = {
+                        'detected_key': analysis.get('detected_key', 'unknown'),
+                        'tempo_bpm': analysis.get('tempo_bpm', 0.0),
+                        'duration_seconds': analysis.get('duration_seconds', 0.0),
+                        'audio_fingerprint': analysis.get('audio_fingerprint')
+                    }
+                
+                return response
             else:
                 return {'status': 'error', 'message': 'File not found'}
         elif cmd_type == 'local_announce_content':
@@ -58,13 +71,24 @@ class LocalAPI:
             if content_hash == 'all_available_content':
                 available_content_list = []
                 for file_hash, file_info in self.node.file_manager.files.items():
-                    available_content_list.append({
+                    content_item = {
                         'content_id': file_hash,
                         'filename': file_info['filename'],
                         'size': file_info['size'],
-                        'num_chunks': len(file_info['chunks']),
+                        'num_chunks': len(file_info.get('chunks', {})),
                         'peers': self.node.dht.get_peers_for_content(file_hash)
-                    })
+                    }
+                    
+                    # Add audio analysis if available
+                    analysis = file_info.get('analysis')
+                    if analysis and analysis.get('is_audio'):
+                        content_item['audio_analysis'] = {
+                            'detected_key': analysis.get('detected_key', 'unknown'),
+                            'tempo_bpm': analysis.get('tempo_bpm', 0.0),
+                            'duration_seconds': analysis.get('duration_seconds', 0.0)
+                        }
+                    
+                    available_content_list.append(content_item)
                 return {'status': 'success', 'available_content': available_content_list}
             else:
                 peers = self.node.dht.get_peers_for_content(content_hash)
@@ -140,4 +164,78 @@ class LocalAPI:
             owner_address = payload.get('owner_address')
             result = self.node.blockchain.verify_file_on_chain(file_hash, owner_address)
             return {'status': 'success' if result else 'error'}
-        return {'status': 'error', 'message': 'Unknown command'} 
+        elif cmd_type == 'local_audio_analysis':
+            file_hash = payload.get('file_hash')
+            analysis = self.node.file_manager.get_audio_analysis(file_hash)
+            if analysis:
+                return {'status': 'success', 'file_hash': file_hash, 'analysis': analysis}
+            else:
+                return {'status': 'error', 'message': 'No analysis found for this file'}
+        elif cmd_type == 'local_find_by_key':
+            target_key = payload.get('key')
+            tolerance = payload.get('tolerance', 2)
+            if not target_key:
+                return {'status': 'error', 'message': 'Missing key parameter'}
+            
+            try:
+                compatible_files = self.node.file_manager.find_audio_files_by_key(target_key, tolerance)
+                return {
+                    'status': 'success',
+                    'target_key': target_key,
+                    'tolerance': tolerance,
+                    'compatible_files': compatible_files,
+                    'count': len(compatible_files)
+                }
+            except Exception as e:
+                return {'status': 'error', 'message': str(e)}
+        elif cmd_type == 'local_audio_summary':
+            try:
+                summary = self.node.file_manager.get_audio_files_summary()
+                return {'status': 'success', 'summary': summary}
+            except Exception as e:
+                return {'status': 'error', 'message': str(e)}
+        elif cmd_type == 'local_search_audio':
+            search_params = payload
+            try:
+                # Get all audio files
+                summary = self.node.file_manager.get_audio_files_summary()
+                audio_files = summary.get('audio_files', [])
+                
+                # Apply filters
+                filtered_files = audio_files
+                
+                # Filter by key
+                if 'key' in search_params and search_params['key']:
+                    target_key = search_params['key']
+                    tolerance = search_params.get('key_tolerance', 2)
+                    compatible_files = self.node.file_manager.find_audio_files_by_key(target_key, tolerance)
+                    compatible_hashes = {cf['file_hash'] for cf in compatible_files}
+                    filtered_files = [f for f in filtered_files if f['file_hash'] in compatible_hashes]
+                
+                # Filter by tempo range
+                if 'min_tempo' in search_params or 'max_tempo' in search_params:
+                    min_tempo = search_params.get('min_tempo', 0)
+                    max_tempo = search_params.get('max_tempo', 999)
+                    filtered_files = [
+                        f for f in filtered_files
+                        if min_tempo <= f.get('tempo_bpm', 0) <= max_tempo
+                    ]
+                
+                # Filter by duration range
+                if 'min_duration' in search_params or 'max_duration' in search_params:
+                    min_duration = search_params.get('min_duration', 0)
+                    max_duration = search_params.get('max_duration', 99999)
+                    filtered_files = [
+                        f for f in filtered_files
+                        if min_duration <= f.get('duration_seconds', 0) <= max_duration
+                    ]
+                
+                return {
+                    'status': 'success',
+                    'search_criteria': search_params,
+                    'results': filtered_files,
+                    'count': len(filtered_files)
+                }
+            except Exception as e:
+                return {'status': 'error', 'message': str(e)}
+        return {'status': 'error', 'message': 'Unknown command'}

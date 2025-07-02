@@ -399,3 +399,14 @@ This section summarizes the current state of the EchoChain blockchain node deplo
 - Document test results and update this checklist.
 
 ---
+
+## 🔗 Integration with P2P File Sharing System
+
+- The EchoChain blockchain node is designed to interoperate with the modular P2P file sharing system (see [P2P File Sharing System README](../P2P_File_Sharing_System/README.md)).
+- P2P nodes register file metadata and verify ownership via blockchain extrinsics.
+- Backend and macOS app coordinate between blockchain and P2P layers for end-to-end sample management.
+
+## 🔒 Automation & Security Improvements
+
+- Chainstack endpoint management is now automated via scripts and GitHub Actions, ensuring up-to-date `.env` configuration without hardcoding secrets.
+- All sensitive credentials and endpoints must be managed via environment variables and `.env` files (never hardcoded).

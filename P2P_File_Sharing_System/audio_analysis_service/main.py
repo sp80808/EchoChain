@@ -41,9 +41,31 @@ async def analyze_audio(file: UploadFile = File(...)):
         # Calculate average BPM if any tempos were detected
         bpm = np.mean(tempos) if tempos else None
 
-        # Key detection (aubio doesn't have a direct key detection, usually done with pitch/chroma analysis)
-        # For simplicity, we'll leave key as None or implement a basic placeholder.
-        key = None # Placeholder for key detection
+        # Key detection using basic pitch/chroma analysis with aubio
+        # This is a simplified approach to detect the dominant key by analyzing pitch over time.
+        # A more sophisticated method would involve full chroma feature extraction and correlation with key profiles.
+        p = aubio.pitch("yin", win_s, hop_s, samplerate)
+        pitches = []
+        s = aubio.source(tmp_file_path, samplerate, hop_s)  # Re-open the source for pitch analysis
+        while True:
+            samples, read = s()
+            pitch = p(samples)[0]
+            if pitch > 0:  # Only consider valid pitch values
+                pitches.append(pitch)
+            if read < hop_s:
+                break
+        
+        # Convert pitches to MIDI notes and find the most common note as a rough key estimate
+        if pitches:
+            midi_notes = [int(round(12.0 * np.log2(p / 440.0) + 69)) % 12 for p in pitches if p > 0]
+            if midi_notes:
+                most_common_note = max(set(midi_notes), key=midi_notes.count)
+                key_names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+                key = key_names[most_common_note]
+            else:
+                key = "Unknown (no valid pitches detected)"
+        else:
+            key = "Unknown (no pitches detected)"
 
         return JSONResponse({
             'bpm': bpm,

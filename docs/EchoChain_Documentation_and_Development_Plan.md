@@ -173,20 +173,21 @@ The following are the primary components that require detailed documentation and
 
 *   **Purpose:** Decentralized storage and distribution of music samples, reducing reliance on central servers.
 *   **Architectural Design:**
+    *   Modular Python architecture (2025): `networking.py`, `dht.py`, `file_manager.py`, `api.py`, `blockchain.py`, orchestrated by `EchoChainNode` in `node.py`.
+    *   All P2P orchestration and message routing handled by `EchoChainNode`.
+    *   Local API for integration with macOS app and backend.
     *   DHT (Distributed Hash Table) for content discovery.
     *   BitTorrent-like protocol for file transfer.
     *   Node discovery and connectivity.
     *   Content addressing (e.g., IPFS CIDs).
 *   **Core Technologies Utilized:**
-    *   Potential languages (e.g., Go, Rust, Python).
-    *   Networking libraries (e.g., libp2p).
-    *   Hashing algorithms.
+    *   Python 3.x, asyncio, socket, hashing algorithms.
 *   **External and Internal Dependencies:**
     *   Blockchain for content metadata and ownership verification.
     *   macOS App for initiating transfers.
 *   **API Specifications:**
-    *   Local API for macOS App to request/provide files.
-    *   P2P protocol specifications.
+    *   Local API for macOS App to request/provide files (see `api.py`).
+    *   P2P protocol specifications and message types (see `node.py`).
 *   **Relevant Data Models:**
     *   File chunks, metadata hashes.
     *   Peer addresses and connection states.
@@ -198,6 +199,15 @@ The following are the primary components that require detailed documentation and
     *   Unit tests for hashing and chunking.
     *   Network simulation for peer discovery and file transfer.
     *   Stress testing for large file transfers and high peer counts.
+*   **Verification & Testing Checklist:**
+    *   [ ] All modules importable and testable
+    *   [ ] Local API endpoints respond as documented
+    *   [ ] P2P message routing works for all types
+    *   [ ] Blockchain stubs callable from API
+    *   [ ] Legacy node compatibility wrapper works
+*   **Automation & Security Practices:**
+    *   Chainstack endpoint management automated via scripts and CI workflows
+    *   All sensitive credentials managed via environment variables and `.env` files
 
 **Development Plan:**
 
@@ -525,10 +535,63 @@ This roadmap ensures EchoChain will be production-ready, secure, and extensible,
 *   [Content Rewards Pallet Documentation](./content-rewards-pallet.md)
 *   [Network Rewards Pallet Documentation](./network-rewards-pallet.md)
 
-## Related Documentation
+## Quickstart & API Usage Examples
 
-*   [Main EchoChain Project README](../README.md)
-*   [Architecture Overview](./architecture.md)
-*   [AsyncAPI Specification](./asyncapi.yaml)
-*   [Content Rewards Pallet Documentation](./content-rewards-pallet.md)
-*   [Network Rewards Pallet Documentation](./network-rewards-pallet.md)
+### P2P Node
+1. Install dependencies:
+   ```bash
+   cd P2P_File_Sharing_System
+   python -m venv venv && source venv/bin/activate
+   pip install -r requirements.txt
+   ```
+2. Start the node:
+   ```bash
+   python node.py
+   ```
+3. Use the Python example in the P2P README to interact with the local API.
+
+### Blockchain Node
+1. Follow the [Node Deployment Architecture](./EchoChain_Node_Deployment_Architecture.md) for setup.
+2. Use the GUI or backend to interact with the blockchain.
+
+### Frontend/GUI
+1. Install dependencies:
+   ```bash
+   cd Blockchain/Blockchain_GUI
+   npm install
+   ```
+2. Start the app:
+   ```bash
+   npm start
+   ```
+3. Use the provided service functions for blockchain operations (see `blockchainService.js`).
+
+### Example: Using Blockchain Service in React
+```javascript
+import { getBlockchainStatus, deployNetwork, forceTransfer, runTests, toggleFaucet } from './services/blockchainService';
+
+// Example: Get blockchain status
+getBlockchainStatus().then(status => {
+  console.log('Blockchain status:', status);
+});
+
+// Example: Deploy network
+deployNetwork({ validators: 3 }).then(result => {
+  alert(result.message);
+});
+
+// Example: Force a transfer
+forceTransfer('Alice', 'Bob', 1000).then(result => {
+  if (result.success) alert('Transfer complete!');
+});
+
+// Example: Run tests
+runTests().then(result => {
+  console.log(result.results);
+});
+
+// Example: Toggle faucet
+toggleFaucet(true).then(result => {
+  alert(result.message);
+});
+```

@@ -15,6 +15,9 @@ mod benchmarking;
 pub mod pallet {
     use frame_support::pallet_prelude::*;
     use frame_system::pallet_prelude::*;
+    use frame_support::traits::{Currency, ExistenceRequirement};
+
+    type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
     #[pallet::pallet]
     #[pallet::generate_store(pub(super) trait Store)]
@@ -23,7 +26,10 @@ pub mod pallet {
     #[pallet::config]
     pub trait Config: frame_system::Config {
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-        type TotalRewardPerPeriod: Get<u128>;
+        type TotalRewardPerPeriod: Get<BalanceOf<Self>>;
+        /// Currency type for network reward payments
+        #[pallet::constant]
+        type Currency: Currency<Self::AccountId>;
     }
 
     #[derive(Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
@@ -40,7 +46,7 @@ pub mod pallet {
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
         ReportSubmitted(T::AccountId),
-        NetworkRewardDistributed(T::AccountId, u128),
+        NetworkRewardDistributed(T::AccountId, BalanceOf<T>),
     }
 
     #[pallet::error]
@@ -72,18 +78,21 @@ pub mod pallet {
         pub fn distribute_network_rewards(origin: OriginFor<T>) -> DispatchResult {
             ensure_root(origin)?;
             let total_rewards = T::TotalRewardPerPeriod::get();
-            let total_reports = Reports::<T>::iter().count() as u128;
+            let total_reports = Reports::<T>::iter().count();
 
             if total_reports == 0 {
                 return Ok(());
             }
 
-            let reward_per_report = total_rewards / total_reports;
+            let reward_per_report = total_rewards / (total_reports as u32).into();
 
-            for (account, _) in Reports::<T>::iter() {
-                // This is a stub for the actual reward distribution.
-                // The actual implementation would require a balance transfer.
-                Self::deposit_event(Event::NetworkRewardDistributed(account.clone(), reward_per_report));
+            // Use a vector to collect account addresses to avoid borrowing issues
+            let accounts: Vec<T::AccountId> = Reports::<T>::iter().map(|(account, _)| account).collect();
+
+            for account in accounts {
+                // Actual balance transfer implementation
+                T::Currency::deposit_creating(&account, reward_per_report);
+                Self::deposit_event(Event::NetworkRewardDistributed(account, reward_per_report));
             }
 
             // Clear reports for the next period

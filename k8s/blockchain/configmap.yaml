@@ -1,0 +1,138 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: echochain-config
+  namespace: echochain
+  labels:
+    app: echochain-node
+    component: config
+data:
+  # Chain specification
+  chain-spec: "echochain-mainnet"
+  
+  # Node configuration
+  node-name-prefix: "echochain-validator"
+  base-path: "/data"
+  
+  # Network configuration
+  p2p-port: "30333"
+  rpc-port: "9933"
+  ws-port: "9944"
+  prometheus-port: "9615"
+  
+  # RPC settings
+  rpc-cors: "all"
+  rpc-methods: "Safe"
+  
+  # Logging configuration
+  log-level: "info"
+  log-targets: "runtime=debug,babe=debug,grandpa=debug"
+  
+  # Database configuration
+  database: "RocksDb"
+  db-cache: "1024"
+  
+  # Pruning configuration
+  state-pruning: "archive"
+  blocks-pruning: "archive"
+  
+  # Telemetry configuration
+  telemetry-url: "wss://telemetry.polkadot.io/submit/ 0"
+  
+  # Performance tuning
+  max-runtime-instances: "8"
+  runtime-cache-size: "2"
+  
+  # Security settings
+  unsafe-ws-external: "false"
+  unsafe-rpc-external: "false"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: echochain-chain-spec
+  namespace: echochain
+  labels:
+    app: echochain-node
+    component: chain-spec
+data:
+  echochain-mainnet.json: |
+    {
+      "name": "EchoChain Mainnet",
+      "id": "echochain",
+      "chainType": "Live",
+      "bootNodes": [
+        "/dns/bootnode-1.echochain.xyz/tcp/30333/p2p/12D3KooWBmAwcd4PJNJvfV89HwE48nwkRmAgo8Vy3uQEyNNHBox2",
+        "/dns/bootnode-2.echochain.xyz/tcp/30333/p2p/12D3KooWCuo8dyNoX8fMhSiQh1ZHfT2odMBbMLWJaxPGgaXZ8awd"
+      ],
+      "telemetryEndpoints": [
+        [
+          "wss://telemetry.polkadot.io/submit/",
+          0
+        ]
+      ],
+      "protocolId": "echo",
+      "properties": {
+        "tokenDecimals": 12,
+        "tokenSymbol": "ECHO",
+        "ss58Format": 42
+      },
+      "relay_chain": null,
+      "para_id": null,
+      "consensus": {
+        "aura": {
+          "authorities": []
+        },
+        "grandpa": {
+          "authorities": []
+        }
+      },
+      "genesis": {
+        "runtime": {
+          "system": {
+            "code": "0x"
+          },
+          "balances": {
+            "balances": []
+          },
+          "aura": {
+            "authorities": []
+          },
+          "grandpa": {
+            "authorities": []
+          },
+          "sudo": {
+            "key": null
+          }
+        }
+      }
+    }
+  
+  echochain-testnet.json: |
+    {
+      "name": "EchoChain Testnet",
+      "id": "echochain-testnet",
+      "chainType": "Development",
+      "bootNodes": [],
+      "telemetryEndpoints": null,
+      "protocolId": "echo-test",
+      "properties": {
+        "tokenDecimals": 12,
+        "tokenSymbol": "ECHO",
+        "ss58Format": 42
+      },
+      "consensus": {
+        "aura": {
+          "authorities": [
+            "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+            "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+          ]
+        },
+        "grandpa": {
+          "authorities": [
+            ["5FA9nQDVg267DEd8m1ZypXLBnvN7SFxYwV7ndqSYGiN9TTpu", 1],
+            ["5GoNkf6WdbxCFnPdAnYYQyCjAKPJgLNxXwPjwTh6DGg6gN3E", 1]
+          ]
+        }
+      }
+    }

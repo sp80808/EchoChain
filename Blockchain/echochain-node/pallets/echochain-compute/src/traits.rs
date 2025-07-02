@@ -96,20 +96,20 @@ pub trait WeightInfo {
 }
 
 impl WeightInfo for () {
-	// TODO: Replace with auto-generated weights from real benchmarks. See issue #124.
+	// Interim weights set based on operation complexity. TODO: Replace with auto-generated weights from real benchmarks. See issue #124.
 	fn create_pool(_x: u32) -> Weight {
-		Weight::from_parts(500_000, 0) // Conservative estimate
+		Weight::from_parts(1_000_000, 0) // Higher weight due to storage creation and initialization
 	}
 
 	fn modify_pool_same_config() -> Weight {
-		Weight::from_parts(500_000, 0)
+		Weight::from_parts(200_000, 0) // Lower weight as no significant changes are made
 	}
 
 	fn modify_pool_replace_config(_x: u32) -> Weight {
-		Weight::from_parts(500_000, 0)
+		Weight::from_parts(800_000, 0) // Moderate weight for replacing configuration
 	}
 
 	fn modify_pool_update_config(_x: u32) -> Weight {
-		Weight::from_parts(500_000, 0)
+		Weight::from_parts(600_000, 0) // Moderate weight for updating configuration
 	}
 }

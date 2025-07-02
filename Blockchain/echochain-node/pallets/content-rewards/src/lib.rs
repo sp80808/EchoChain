@@ -15,7 +15,10 @@ mod benchmarking;
 pub mod pallet {
     use frame_support::pallet_prelude::*;
     use frame_system::pallet_prelude::*;
+    use frame_support::traits::{Currency, ExistenceRequirement};
     use pallet_sample_registry::SampleInterface;
+
+    type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
     #[pallet::pallet]
     #[pallet::generate_store(pub(super) trait Store)]
@@ -25,14 +28,17 @@ pub mod pallet {
     pub trait Config: frame_system::Config {
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
         type MinApprovedSamples: Get<u32>;
-        type RewardAmount: Get<u128>;
+        type RewardAmount: Get<BalanceOf<Self>>;
         type SampleRegistry: SampleInterface<Self::AccountId>;
+        /// Currency type for content reward payments
+        #[pallet::constant]
+        type Currency: Currency<Self::AccountId>;
     }
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
-        RewardDistributed(T::AccountId, u128),
+        RewardDistributed(T::AccountId, BalanceOf<T>),
     }
 
     #[pallet::call]
@@ -41,12 +47,24 @@ pub mod pallet {
         pub fn distribute_rewards(origin: OriginFor<T>) -> DispatchResult {
             ensure_root(origin)?;
 
-            for (account, _) in frame_system::Account::<T>::iter() {
-                if T::SampleRegistry::get_approved_sample_count(&account) >= T::MinApprovedSamples::get() {
-                    // This is a stub for the actual reward distribution.
-                    // The actual implementation would require a balance transfer.
-                    Self::deposit_event(Event::RewardDistributed(account, T::RewardAmount::get()));
-                }
+            let reward_amount = T::RewardAmount::get();
+            let min_samples = T::MinApprovedSamples::get();
+
+            // Collect eligible accounts to avoid borrowing issues
+            let eligible_accounts: Vec<T::AccountId> = frame_system::Account::<T>::iter()
+                .filter_map(|(account, _)| {
+                    if T::SampleRegistry::get_approved_sample_count(&account) >= min_samples {
+                        Some(account)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            for account in eligible_accounts {
+                // Actual balance transfer implementation
+                T::Currency::deposit_creating(&account, reward_amount);
+                Self::deposit_event(Event::RewardDistributed(account, reward_amount));
             }
 
             Ok(())

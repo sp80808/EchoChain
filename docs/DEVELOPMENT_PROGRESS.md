@@ -121,6 +121,16 @@ This document tracks the current development progress of the EchoChain blockchai
 - [ ] **Docker containerization** for easy deployment
 - [ ] **CI/CD pipeline** setup for automated testing and deployment
 
+### 4. P2P System Modularization & API Expansion
+- ✅ Refactored P2P node into modular components (`networking.py`, `dht.py`, `file_manager.py`, `api.py`, `blockchain.py`)
+- ✅ Expanded local API with clear endpoints for file management and blockchain stubs
+- ✅ Deprecated legacy `p2p_node.py` in favor of orchestrator-based `node.py`
+
+### 5. Automation & Documentation Improvements
+- ✅ Added Chainstack endpoint automation scripts and GitHub Actions workflow
+- ✅ Adopted verification & testing checklists for all major components
+- ✅ Updated and cross-linked documentation for onboarding and integration
+
 ## Technical Debt and Known Issues
 
 ### High Priority

@@ -1,0 +1,223 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: echochain-validator
+  namespace: echochain
+  labels:
+    app: echochain-node
+    component: validator
+    tier: blockchain
+spec:
+  serviceName: echochain-validator-headless
+  replicas: 3
+  selector:
+    matchLabels:
+      app: echochain-node
+      component: validator
+  template:
+    metadata:
+      labels:
+        app: echochain-node
+        component: validator
+        tier: blockchain
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9615"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: echochain-node
+      containers:
+      - name: echochain-node
+        image: echochain/echochain-node:latest
+        imagePullPolicy: Always
+        ports:
+        - name: p2p
+          containerPort: 30333
+          protocol: TCP
+        - name: rpc
+          containerPort: 9933
+          protocol: TCP
+        - name: ws
+          containerPort: 9944
+          protocol: TCP
+        - name: prometheus
+          containerPort: 9615
+          protocol: TCP
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: CHAIN_SPEC
+          valueFrom:
+            configMapKeyRef:
+              name: echochain-config
+              key: chain-spec
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        command:
+        - /bin/sh
+        - -c
+        - |
+          exec echochain-node \
+            --name="$(NODE_NAME)" \
+            --chain="$(CHAIN_SPEC)" \
+            --base-path=/data \
+            --port=30333 \
+            --rpc-port=9933 \
+            --ws-port=9944 \
+            --prometheus-port=9615 \
+            --prometheus-external \
+            --rpc-cors=all \
+            --rpc-methods=Safe \
+            --ws-external \
+            --rpc-external \
+            --validator \
+            --telemetry-url="wss://telemetry.polkadot.io/submit/ 0" \
+            --log=info \
+            --state-pruning=archive \
+            --blocks-pruning=archive \
+            --database=RocksDb \
+            --db-cache=1024 \
+            --max-runtime-instances=8 \
+            --runtime-cache-size=2
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 2Gi
+            ephemeral-storage: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+            ephemeral-storage: 2Gi
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: chain-spec
+          mountPath: /chain-specs
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 9933
+          initialDelaySeconds: 120
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 9933
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 9933
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: chain-spec
+        configMap:
+          name: echochain-chain-spec
+      - name: tmp
+        emptyDir: {}
+      terminationGracePeriodSeconds: 300
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - echochain-node
+                - key: component
+                  operator: In
+                  values:
+                  - validator
+              topologyKey: kubernetes.io/hostname
+          - weight: 50
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - echochain-node
+              topologyKey: topology.kubernetes.io/zone
+      tolerations:
+      - key: "blockchain"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+      labels:
+        app: echochain-node
+        component: validator
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: fast-ssd
+      resources:
+        requests:
+          storage: 500Gi
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: echochain-node
+  namespace: echochain
+  labels:
+    app: echochain-node
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: echochain
+  name: echochain-node
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: echochain-node
+  namespace: echochain
+subjects:
+- kind: ServiceAccount
+  name: echochain-node
+  namespace: echochain
+roleRef:
+  kind: Role
+  name: echochain-node
+  apiGroup: rbac.authorization.k8s.io

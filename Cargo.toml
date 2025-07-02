@@ -9,8 +9,19 @@ repository = "https://github.com/EchoChain/Echochain.git"
 resolver = "2"
 
 members = [
+    
     "Blockchain/echochain-node/node",
     "Blockchain/echochain-node/runtime",
+    "Blockchain/echochain-node/pallets/content-rewards",
+    "Blockchain/echochain-node/pallets/echochain-compute",
+    "Blockchain/echochain-node/pallets/echochain-marketplace",
+    "Blockchain/echochain-node/pallets/governance",
+    "Blockchain/echochain-node/pallets/network-rewards",
+    "Blockchain/echochain-node/pallets/p2p-integration",
+    "Blockchain/echochain-node/pallets/proof-of-contribution",
+    "Blockchain/echochain-node/pallets/royalty-distribution",
+    "Blockchain/echochain-node/pallets/sample-registry",
+    "Blockchain/echochain-node/pallets/template", "isolated-echochain-compute",
 ]
 
 [workspace.lints.rust]

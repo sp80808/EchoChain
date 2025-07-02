@@ -1,0 +1,9 @@
+[submodule "Blockchain/polkadot-sdk"]
+    path = Blockchain/polkadot-sdk
+    url = https://github.com/paritytech/polkadot-sdk.git
+[submodule "Blockchain/acurast-substrate"]
+    path = Blockchain/acurast-substrate
+    url = https://github.com/Acurast/acurast-substrate.git
+[submodule "Blockchain/substrate-contracts-node"]
+    path = Blockchain/substrate-contracts-node
+    url = https://github.com/paritytech/substrate-contracts-node.git

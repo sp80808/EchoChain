@@ -279,3 +279,20 @@ fn test_sample_status_transitions() {
 
 /// Test that non-existent sample updates fail properly
 /// 
+/// This ensures error handling works correctly.
+#[test]
+fn test_nonexistent_sample_handling() {
+    new_test_ext().execute_with(|| {
+        let nonexistent_id = 999u64;
+
+        // Test: Updating non-existent sample should fail
+        assert_err!(
+            SampleRegistry::emergency_update_sample_status(
+                RuntimeOrigin::root(),
+                nonexistent_id,
+                SampleStatus::Approved
+            ),
+            Error::<Test>::SampleNotFound
+        );
+    });
+}

@@ -70,6 +70,10 @@ pub use pallet_collective;
 pub use pallet_treasury;
 pub use pallet_scheduler;
 
+/// Import migrations for security fixes
+mod migrations;
+use migrations::SecurityFixesMigration;
+
 /// Import XCM and Contracts
 use pallet_contracts;
 use pallet_xcm;
@@ -141,7 +145,9 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("echochain"),
 	impl_name: create_runtime_str!("echochain"),
 	authoring_version: 1,
-	spec_version: 100,
+	/// SECURITY: Incremented spec_version to trigger security fixes migration
+	/// This ensures all nodes upgrade to the secure transaction payment system
+	spec_version: 101,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -296,33 +302,18 @@ impl pallet_balances::Config for Runtime {
 	type MaxHolds = ();
 }
 
-/// A zero-fee implementation of OnChargeTransaction
-pub struct ZeroFeeOnChargeTransaction;
-impl OnChargeTransaction<Runtime> for ZeroFeeOnChargeTransaction {
-    type Balance = Balance;
-    type LiquidityInfo = ();
-
-    fn withdraw_fee(
-        &self,
-        _who: &AccountId,
-        _call: &RuntimeCall,
-        _info: &DispatchInfoOf<RuntimeCall>,
-        _fee: Self::Balance,
-        _tip: Self::Balance,
-    ) -> Result<Self::LiquidityInfo, TransactionValidityError> {
-        Ok(())
-    }
-
-    fn correct_and_deposit_fee(
-        &self,
-        _who: &AccountId,
-        _corrected_fee: Self::Balance,
-        _tip: Self::Balance,
-        _already_withdrawn: Self::LiquidityInfo,
-    ) -> Result<(), TransactionValidityError> {
-        Ok(())
-    }
-}
+/// Transaction payment handler that charges proper fees to prevent spam attacks
+///
+/// # Security Considerations
+/// This implementation ensures economic security by:
+/// - Charging transaction fees based on weight and length
+/// - Preventing unlimited spam attacks that were possible with zero fees
+/// - Maintaining proper economic incentives for validators
+///
+/// # Migration from ZeroFeeOnChargeTransaction
+/// This replaces the vulnerable zero-fee implementation that allowed
+/// unlimited spam attacks by bypassing all transaction fees.
+pub type TransactionPaymentHandler = CurrencyAdapter<Balances, ()>;
 
 parameter_types! {
 	pub FeeMultiplier: Multiplier = Multiplier::one();
@@ -330,11 +321,13 @@ parameter_types! {
 
 impl pallet_transaction_payment::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type OnChargeTransaction = ZeroFeeOnChargeTransaction;
+	/// SECURITY FIX: Replace zero-fee with proper transaction payment
+	/// This prevents spam attacks by ensuring all transactions pay appropriate fees
+	type OnChargeTransaction = TransactionPaymentHandler;
 	type OperationalFeeMultiplier = ConstU8<5>;
 	type WeightToFee = IdentityFee<Balance>;
 	type LengthToFee = IdentityFee<Balance>;
-	type FeeMultiplierUpdate = ();
+	type FeeMultiplierUpdate = ConstFeeMultiplier<FeeMultiplier>;
 }
 
 impl pallet_sudo::Config for Runtime {
@@ -350,6 +343,11 @@ impl pallet_template::Config for Runtime {
 
 impl pallet_sample_registry::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
+	/// SECURITY FIX: Use governance-based approval instead of root-only
+	/// This enables decentralized sample approval through council decisions
+	type ApprovalOrigin = pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>;
+	/// Minimum reputation required for approval authority (placeholder for future reputation system)
+	type MinApprovalReputation = ConstU32<100>;
 }
 
 impl pallet_content_rewards::Config for Runtime {
@@ -652,12 +650,14 @@ pub type UncheckedExtrinsic =
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;
 /// Executive: handles dispatch to the various modules.
+/// SECURITY: Includes migration for security fixes
 pub type Executive = frame_executive::Executive<
 	Runtime,
 	Block,
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
+	SecurityFixesMigration<Runtime>,
 >;
 
 #[cfg(feature = "runtime-benchmarks")]

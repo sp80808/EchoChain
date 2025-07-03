@@ -14,6 +14,7 @@ dotenv.config(); // Load environment variables from .env file
 import { AppDataSource } from "./data-source";
 
 import logger from './logger';
+import { ethLogin } from './ethAuth';
 
 AppDataSource.initialize().then(() => {
     logger.info("Data Source has been initialized!")
@@ -102,6 +103,9 @@ app.post('/api/copyright-check', apiRateLimiter, authenticateToken, asyncHandler
 // Sample routes
 app.get('/api/samples', apiRateLimiter, asyncHandler(getSamples));
 app.post('/api/samples', apiRateLimiter, authenticateToken, asyncHandler(registerSample));
+
+// New route
+app.post('/api/eth-login', authRateLimiter, asyncHandler(ethLogin));
 
 import { ApiError } from "./errors";
 

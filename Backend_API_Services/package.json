@@ -11,7 +11,11 @@
     "format": "prettier --write \"src/**/*.{js,ts,json,md}\"",
     "test": "jest"
   },
-  "keywords": ["blockchain", "api", "echochain"],
+  "keywords": [
+    "blockchain",
+    "api",
+    "echochain"
+  ],
   "author": "EchoChain Team",
   "license": "MIT",
   "dependencies": {

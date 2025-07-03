@@ -1,4 +1,3 @@
-
 __pycache__/
 !.env.example
 !.vscode/extensions.json
@@ -192,3 +191,4 @@ venv/
 yarn-debug.log*
 yarn-error.log*
 yarn.lock
+polkadot-sdk-master/

@@ -6,8 +6,7 @@
   "scripts": {
     "start": "python3 node.py",
     "test": "python3 -m pytest tests/",
-    "lint": "flake8 *.py",
-    "format": "black *.py"
+    "lint": "flake8 *.py"
   },
   "keywords": ["p2p", "blockchain", "file-sharing", "echochain"],
   "author": "EchoChain Team",
@@ -17,7 +16,6 @@
   },
   "devDependencies": {
     "pytest": ">=7.0.0",
-    "flake8": ">=4.0.0",
-    "black": ">=22.0.0"
+    "flake8": ">=4.0.0"
   }
 }

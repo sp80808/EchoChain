@@ -1,6 +1,7 @@
 import asyncio
 import json
 
+
 class PeerConnection:
     def __init__(self, host, port, peer_id=None):
         self.host = host
@@ -17,6 +18,7 @@ class PeerConnection:
         except Exception as e:
             print(f"Could not send message to {self.host}:{self.port}: {e}")
 
+
 class Networking:
     def __init__(self, node):
         self.node = node
@@ -29,7 +31,7 @@ class Networking:
             await server.serve_forever()
 
     async def handle_connection(self, reader, writer):
-        addr = writer.get_extra_info('peername')
+        addr = writer.get_extra_info("peername")
         print(f"Connected by {addr}")
         try:
             while True:
@@ -50,7 +52,7 @@ class Networking:
 
     def get_peers(self):
         return self.peers
-    
+
     async def send_message_to_peer(self, peer_info, message):
         """
         Send a message to a specific peer and return the response.
@@ -66,21 +68,21 @@ class Networking:
             else:
                 print(f"Invalid peer info: {peer_info}")
                 return None
-                
+
             reader, writer = await asyncio.open_connection(host, port)
-            
+
             # Send message
             writer.write(json.dumps(message).encode())
             await writer.drain()
-            
+
             # Read response
             response_data = await reader.read(4096)
             if response_data:
                 response = json.loads(response_data.decode())
                 return response
-            
+
             return None
-            
+
         except Exception as e:
             print(f"Error sending message to peer {peer_info}: {e}")
             return None

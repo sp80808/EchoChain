@@ -13,4 +13,4 @@ class DHT:
         return self.dht.get(content_hash, [])
 
     def get_all_content(self):
-        return list(self.dht.keys()) 
+        return list(self.dht.keys())

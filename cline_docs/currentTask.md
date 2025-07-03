@@ -68,7 +68,7 @@ The EchoChain project now has:
 - **Advanced Search**: Multi-criteria search supporting key, tempo, and duration filtering
 
 ## Next Steps
-1. **Audio System Testing**: Validate the new audio analysis features with real audio files, including the implemented key detection logic using pitch analysis.
+1. **Audio System Testing**: Validate the new audio analysis features with real audio files.
 2. **Blockchain Node Deployment**: Set up local development blockchain node for end-to-end testing
 3. **GUI Integration**: Update the React GUI to leverage new audio analysis capabilities
 4. **Performance Optimization**: Optimize audio analysis processing for large file collections
@@ -92,26 +92,4 @@ pip install librosa numpy
 }
 ```
 
-### Find Compatible Audio Files
-```json
-{
-  "type": "local_find_by_key",
-  "payload": {
-    "key": "C major",
-    "tolerance": 2
-  }
-}
-```
 
-### Advanced Audio Search
-```json
-{
-  "type": "local_search_audio",
-  "payload": {
-    "key": "A minor",
-    "key_tolerance": 3,
-    "min_tempo": 120,
-    "max_tempo": 140,
-    "min_duration": 180
-  }
-}

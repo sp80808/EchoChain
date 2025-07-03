@@ -53,7 +53,9 @@ class AudioAnalyzer:
             sample_rate: Target sample rate for audio processing
         """
         self.sample_rate = sample_rate
-        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        self.logger = logging.getLogger(
+            f"{__name__}.{self.__class__.__name__}"
+        )
 
         if not LIBROSA_AVAILABLE:
             raise ImportError(
@@ -156,7 +158,9 @@ class AudioAnalyzer:
         """
         try:
             # Extract MFCCs for fingerprinting
-            mfccs = librosa.feature.mfcc(y=y, sr=self.sample_rate, n_mfcc=13)
+            mfccs = librosa.feature.mfcc(
+                y=y, sr=self.sample_rate, n_mfcc=13
+            )
 
             # Take mean of MFCCs over time
             mfcc_mean = np.mean(mfccs, axis=1)
